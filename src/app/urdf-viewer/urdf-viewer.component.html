@@ -1,3 +1,23 @@
 <div class="urdf-container">
+  <div class="controls-modal">
+    <h3>Joint Controls</h3>
+    <div class="xyz-inputs">
+      <label>X: <input type="number" [(ngModel)]="targets.x" step="0.1" (input)="updateTargetMarker()"></label>
+      <label>Y: <input type="number" [(ngModel)]="targets.y" step="0.1" (input)="updateTargetMarker()"></label>
+      <label>Z: <input type="number" [(ngModel)]="targets.z" step="0.1" (input)="updateTargetMarker()"></label>
+      <button (click)="sendTarget()">Go!</button>
+    </div>
+    <div *ngFor="let ctrl of joints">
+      <label>{{ ctrl.name }}: {{ ctrl.angle | number:'1.0-0' }}°</label>
+      <input
+        type="range"
+        min="-180"
+        max="180"
+        [(ngModel)]="ctrl.angle"
+        (input)="ctrl.joint.setJointValue(THREE.MathUtils.degToRad(ctrl.angle));"
+      />
+    </div>
+    <button (click)="resetJoints()">Reset All Joints</button>
+  </div>
   <div #rendererContainer class="renderer-container"></div>
 </div>

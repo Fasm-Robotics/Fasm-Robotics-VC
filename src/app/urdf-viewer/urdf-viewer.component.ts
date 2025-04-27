@@ -1,18 +1,28 @@
 import {Component, ElementRef, NgZone, OnInit, ViewChild} from '@angular/core';
+import {FormsModule} from '@angular/forms';
+import {DecimalPipe, NgForOf} from '@angular/common';
+
+import { gsap } from 'gsap';
 import * as THREE from 'three';
 import { OrbitControls } from 'three-stdlib';
 import URDFLoader from 'urdf-loader';
-import { JointControl } from '../schemas';
+
+import {PositionService} from '../../shared/services/position.service';
+import {JointControl, SendTargetModel} from '../schemas';
 
 @Component({
   selector: 'app-urdf-viewer',
-  imports: [],
+  imports: [
+    FormsModule,
+    NgForOf,
+    DecimalPipe
+  ],
   templateUrl: './urdf-viewer.component.html',
   styleUrl: './urdf-viewer.component.scss'
 })
 export class UrdfViewerComponent implements OnInit {
+  // THREEJS VARIABLES
   @ViewChild('rendererContainer', {static: true}) rendererContainer!: ElementRef;
-
   scene = new THREE.Scene();
   camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
   renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -20,16 +30,34 @@ export class UrdfViewerComponent implements OnInit {
   robot: any = null;
   manager = new THREE.LoadingManager();
   loader = new URDFLoader(this.manager);
-  joints: JointControl[] = [];
-  bbSpace: number = -5.846990346908569; // Placeholder for the actual bounding box space
-  M_inv = new THREE.Matrix4();
 
-  constructor(private ngZone: NgZone) {}
+  // URDF JOINTS
+  joints: JointControl[] = [];
+
+  // TARGET 3D
+  targetMarker!: THREE.Mesh;
+  targets: SendTargetModel = {
+    x: 0,
+    y: 0,
+    z: 0
+  }
+
+  bbSpace: number = -5.846990346908569; // OFFSET FOR THE ROBOT
+  M_inv = new THREE.Matrix4(); // INVERSE KINEMATICS MATRIX
+
+  constructor(private positionService: PositionService, private ngZone: NgZone) {
+    this.targets.x = 0.5
+    this.targets.y = 0.5
+    this.targets.z = 0.5
+  }
 
   ngOnInit() {
     this.init();
     this.animate();
+    this.createTargetMarker();
   }
+
+  // ---------------ALL THESE FUNCTIONS ARE FOR THE URDF VIEWER------------------------------------
 
   // Initialize the scene, camera, and renderer
   init() {
@@ -57,6 +85,10 @@ export class UrdfViewerComponent implements OnInit {
     ground.scale.setScalar(30);
     ground.receiveShadow = true;
     this.scene.add(ground);
+
+    // Uncomment this to get the help grid
+    // const grid = new THREE.GridHelper(10, 10, 0x000000, 0x888888);
+    // this.scene.add(grid);
 
     this.controls = new OrbitControls(this.camera, this.renderer.domElement);
     this.controls.minDistance = 4;
@@ -120,4 +152,81 @@ export class UrdfViewerComponent implements OnInit {
       loop();
     });
   }
+
+  createTargetMarker() {
+    const geometry = new THREE.SphereGeometry(0.02, 16, 16);
+    const material = new THREE.MeshBasicMaterial({ color: 0xff0000 });
+    this.targetMarker = new THREE.Mesh(geometry, material);
+    this.targets.y -= this.bbSpace
+    this.scene.add(this.targetMarker);
+    this.updateTargetMarker();
+  }
+
+  updateTargetMarker() {
+    if (this.targetMarker) {
+      this.targetMarker.position.set(this.targets.x, this.targets.y, this.targets.z);
+    }
+  }
+
+  // ---------------------------------------------------------------
+
+  // UPDATE JOINTS FUNCTIONS
+  updateJoint(ctrl: JointControl, angleInDegrees: boolean = true): void {
+    const rad = angleInDegrees
+      ? THREE.MathUtils.degToRad(ctrl.angle)
+      : ctrl.angle;
+    console.log(rad);
+    ctrl.joint.setJointValue(rad);
+  }
+
+  // RESET JOINTS TO BASE POSITION
+  resetJoints(): void {
+    this.joints.forEach(ctrl => {
+      gsap.to(ctrl, {
+        angle: 0,
+        duration: 1,
+        ease: 'power2.inOut',
+        onUpdate: () => this.updateJoint(ctrl),
+      });
+    });
+  }
+
+  sendTarget(): void {
+    const worldPt = new THREE.Vector3(
+      this.targets.x,
+      this.targets.y,
+      this.targets.z
+    );
+
+    const localPt = worldPt.applyMatrix4(this.M_inv);
+
+    const payload: SendTargetModel = {
+      x: localPt.x,
+      y: localPt.y,
+      z: localPt.z
+    };
+    this.positionService.getReverseK(payload).subscribe({
+      next: (response: Record<string, number>) => {
+        console.log('IK response:', response);
+        this.joints.forEach(ctrl => {
+          const jointName = ctrl.name;
+          if (jointName in response) {
+            const rad = response[jointName];
+            gsap.to(ctrl, {
+              angle: rad,
+              duration: 1,
+              ease: 'power2.inOut',
+              onUpdate: () => this.updateJoint(ctrl, false),
+            });
+          }
+        });
+      },
+      error: (err) => {
+        console.error('ReverseK API error:', err);
+        alert(`Erreur inverse-kinématique : ${err.message || err}`);
+      },
+    });
+  }
+
+  protected readonly THREE = THREE;
 }

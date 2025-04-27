@@ -3,3 +3,13 @@ export interface JointControl {
   angle: number;
   joint: any;
 }
+
+export interface SendTargetModel {
+  x: number;
+  y: number;
+  z: number;
+}
+
+export interface ReverseKResponseModel {
+  [jointName: string]: number;
+}
