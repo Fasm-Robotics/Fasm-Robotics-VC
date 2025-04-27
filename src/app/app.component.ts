@@ -1,9 +1,11 @@
 import { Component } from '@angular/core';
-import { RouterOutlet } from '@angular/router';
+import {UrdfViewerComponent} from './urdf-viewer/urdf-viewer.component';
 
 @Component({
   selector: 'app-root',
-  imports: [RouterOutlet],
+  imports: [
+    UrdfViewerComponent
+  ],
   templateUrl: './app.component.html',
   styleUrl: './app.component.scss'
 })
