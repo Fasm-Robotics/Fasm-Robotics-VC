@@ -80,11 +80,16 @@
       </geometry>
     </collision>
   </link>
-  <joint name="joint_1" type="continuous">
+  <joint name="SH1" type="revolute">
     <origin xyz="0 0 0" rpy="0 0 0"/>  <!-- Adjusted for Y-axis -->
     <parent link="base_link"/>
     <child link="link_1"/>
     <axis xyz="0 1 0"/>  <!-- Keep rotation axis along Y -->
+    <limit
+      lower="-3.15"
+      upper="3.15"
+      effort="0.5"
+      velocity="1.0" />
   </joint>
   <link
     name="link_2">
@@ -125,12 +130,17 @@
     </collision>
   </link>
   <joint
-    name="joint_2"
-    type="continuous">
+    name="SH2"
+    type="revolute">
     <origin xyz="0 1 0" rpy="0 0 0"/>
     <parent link="link_1"/>
     <child link="link_2"/>
     <axis xyz="1 0 0"/>  <!-- Might be wrong -->
+    <limit
+      lower="-3.15"
+      upper="3.15"
+      effort="0.5"
+      velocity="1.0" />
 </joint>
 
   <link
@@ -174,8 +184,8 @@
     </collision>
   </link>
   <joint
-    name="joint_3"
-    type="continuous">
+    name="SH3"
+    type="revolute">
     <origin
       xyz="1.15 0 0.3"
       rpy="0 0 0" />
@@ -185,6 +195,11 @@
       link="link_3" />
     <axis
       xyz="0 0 1" />
+    <limit
+        lower="-3.15"
+        upper="3.15"
+        effort="0.5"
+        velocity="1.0" />
   </joint>
   <link
     name="link_4">
@@ -227,8 +242,8 @@
     </collision>
   </link>
     <joint
-    name="joint_4"
-    type="continuous">
+    name="EL1"
+    type="revolute">
     <origin
       xyz="0 0 -2.8"
       rpy="0 0 0" />
@@ -239,8 +254,10 @@
     <axis
       xyz="0 1 0" />
       <limit
-        lower="0"
-        upper="2.5"/>
+        lower="-3.15"
+        upper="3.15"
+        effort="0.5"
+        velocity="1.0" />
   </joint>
   <link
     name="link_5">

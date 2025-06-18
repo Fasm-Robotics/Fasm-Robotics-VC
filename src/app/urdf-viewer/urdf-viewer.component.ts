@@ -27,12 +27,16 @@ export class UrdfViewerComponent implements OnInit {
   camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
   renderer = new THREE.WebGLRenderer({ antialias: true });
   controls!: OrbitControls;
+
   robot: any = null;
+  previewRobot!: any;
+
   manager = new THREE.LoadingManager();
   loader = new URDFLoader(this.manager);
 
   // URDF JOINTS
   joints: JointControl[] = [];
+  previewJoints: JointControl[] = [];
 
   // TARGET 3D
   targetMarker!: THREE.Mesh;
@@ -101,19 +105,36 @@ export class UrdfViewerComponent implements OnInit {
       this.robot = result;
     });
 
+    this.loader.load('assets/robotarm_corrected.urdf', result => {
+      this.previewRobot = result;
+    });
+
     this.manager.onLoad = () => {
       this.robot.rotation.x = -Math.PI / 2;
+      this.previewRobot.rotation.x = -Math.PI / 2;
+
       this.robot.traverse((c: { castShadow: boolean; }) => {
         c.castShadow = true;
+      });
+      this.previewRobot.traverse((c: any) => {
+        if (c.material) {
+          c.material = c.material.clone();
+          c.material.transparent = true;
+          c.material.opacity = 0.3;
+        }
       });
 
       const bb = new THREE.Box3().setFromObject(this.robot);
       console.log('bb', bb.min.y);
       this.bbSpace = bb.min.y;
+
       this.robot.position.y -= this.bbSpace;
+      this.previewRobot.position.y -= this.bbSpace;
 
       this.scene.add(this.robot);
+      this.scene.add(this.previewRobot);
       this.robot.updateMatrixWorld(true);
+      this.previewRobot.updateMatrixWorld(true);
 
       this.M_inv.copy(this.robot.matrixWorld).invert();
 
@@ -122,6 +143,12 @@ export class UrdfViewerComponent implements OnInit {
         if (joint.jointType === 'fixed') continue;
         this.joints.push({ name, angle: 0, joint });
       }
+      for (const name in (this.previewRobot as any).joints) {
+        const joint = (this.previewRobot as any).joints[name];
+        if (joint.jointType === 'fixed') continue;
+        this.previewJoints.push({ name, angle: 0, joint });
+      }
+      console.log('Joints loaded:', this.previewJoints);
     };
 
     // ----------------------------LOADER URDF------------------------------------
@@ -146,6 +173,9 @@ export class UrdfViewerComponent implements OnInit {
         requestAnimationFrame(loop);
         if (this.robot) {
           this.robot.updateMatrixWorld(true);
+        }
+        if (this.previewRobot) {
+          this.previewRobot.updateMatrixWorld(true);
         }
         this.renderer.render(this.scene, this.camera);
       };
@@ -179,9 +209,33 @@ export class UrdfViewerComponent implements OnInit {
     ctrl.joint.setJointValue(rad);
   }
 
+  // ON CONFIRM BUTTON CLICK
+  confirmMovement() {
+    this.joints.forEach((ctrl, i )=> {
+      const targetAngle = this.previewJoints[i].angle;
+      gsap.to(ctrl, {
+        angle: targetAngle,
+        duration: 1,
+        ease: 'power2.inOut',
+        onUpdate: () => {
+        const rad = THREE.MathUtils.degToRad(ctrl.angle);
+        ctrl.joint.setJointValue(rad);
+        },
+      });
+    });
+  }
+
   // RESET JOINTS TO BASE POSITION
   resetJoints(): void {
     this.joints.forEach(ctrl => {
+      gsap.to(ctrl, {
+        angle: 0,
+        duration: 1,
+        ease: 'power2.inOut',
+        onUpdate: () => this.updateJoint(ctrl),
+      });
+    });
+    this.previewJoints.forEach(ctrl => {
       gsap.to(ctrl, {
         angle: 0,
         duration: 1,
@@ -211,7 +265,7 @@ export class UrdfViewerComponent implements OnInit {
         this.joints.forEach(ctrl => {
           const jointName = ctrl.name;
           if (jointName in response) {
-            const rad = response[jointName];
+            const rad = response[jointName] * Math.PI / 180;
             gsap.to(ctrl, {
               angle: rad,
               duration: 1,
@@ -226,6 +280,51 @@ export class UrdfViewerComponent implements OnInit {
         alert(`Erreur inverse-kinématique : ${err.message || err}`);
       },
     });
+  }
+
+  previewTarget(): void {
+    const worldPt = new THREE.Vector3(
+      this.targets.x,
+      this.targets.y,
+      this.targets.z
+    );
+
+    const localPt = worldPt.applyMatrix4(this.M_inv);
+
+    const payload: SendTargetModel = {
+      x: localPt.x,
+      y: localPt.y,
+      z: localPt.z
+    };
+
+    this.positionService.getPreviewReverseK(payload).subscribe({
+      next: (response: Record<string, number>) => {
+        console.log('IK response:', response);
+        this.previewJoints.forEach(ctrl => {
+          const jointName = ctrl.name;
+          if (jointName in response) {
+            gsap.to(ctrl, {
+              angle: response[jointName],
+              duration: 1,
+              ease: 'power2.inOut',
+              onUpdate: () => this.updateJoint(ctrl, true),
+            });
+          }
+        });
+      },
+      error: (err) => {
+        console.error('ReverseK API error:', err);
+        alert(`Erreur inverse-kinématique : ${err.message || err}`);
+      },
+    });
+  }
+
+  printState() {
+    const state = this.previewJoints.map(joint => ({
+      name: joint.name,
+      angle: joint.angle
+    }));
+    console.log('Current joint state:', state);
   }
 
   protected readonly THREE = THREE;

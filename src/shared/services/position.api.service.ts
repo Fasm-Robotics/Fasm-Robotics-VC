@@ -6,10 +6,14 @@ import { ReverseKResponseModel, SendTargetModel } from "../../app/schemas";
   providedIn: 'root'
 })
 export class PositionApiService {
-  baseUrl = 'http://127.0.0.1:8000/reverseK';
+  baseUrlRealReverse = 'http://127.0.0.1:8000/reverseK';
+  baseUrlPreviewReverse = 'http://127.0.0.1:8000/preview-reverseK';
   constructor(private http: HttpClient) { }
 
   getReverseK(data: SendTargetModel) {
-    return this.http.post<ReverseKResponseModel>(this.baseUrl, data);
+    return this.http.post<ReverseKResponseModel>(this.baseUrlRealReverse, data);
+  }
+  getPreviewReverseK(data: SendTargetModel) {
+    return this.http.post<ReverseKResponseModel>(this.baseUrlPreviewReverse, data);
   }
 }

@@ -15,4 +15,10 @@ export class PositionService {
         map((response: ReverseKResponseModel) => response)
       );
   }
+  getPreviewReverseK(data: SendTargetModel) {
+    return this.positionApiService.getPreviewReverseK(data)
+      .pipe(
+        map((response: ReverseKResponseModel) => response)
+      );
+  }
 }
