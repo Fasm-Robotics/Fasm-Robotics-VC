@@ -1,26 +1,72 @@
 <div class="urdf-container">
   <div class="controls-modal">
-    <h3>Joint Controls</h3>
-    <div class="xyz-inputs">
-      <label>X: <input type="number" [(ngModel)]="targets.x" step="0.1" (input)="updateTargetMarker()"></label>
-      <label>Y: <input type="number" [(ngModel)]="targets.y" step="0.1" (input)="updateTargetMarker()"></label>
-      <label>Z: <input type="number" [(ngModel)]="targets.z" step="0.1" (input)="updateTargetMarker()"></label>
-      <button (click)="previewTarget()">Preview target</button>
-      <button (click)="sendTarget()">GO</button>
-      <button (click)="printState()">Print State</button>
+    <!-- Tab Buttons -->
+    <div class="tab-buttons">
+      <button (click)="activeTab='controls'" [class.active]="activeTab==='controls'">Controls</button>
+      <button (click)="activeTab='sequences'" [class.active]="activeTab==='sequences'">Sequences</button>
     </div>
-    <div *ngFor="let ctrl of previewJoints">
-      <label>{{ ctrl.name }}: {{ ctrl.angle | number:'1.0-0' }}°</label>
-      <input
-        type="range"
-        min="-180"
-        max="180"
-        [(ngModel)]="ctrl.angle"
-        (input)="ctrl.joint.setJointValue(THREE.MathUtils.degToRad(ctrl.angle));"
-      />
+
+    <!-- CONTROLS TAB -->
+    <div *ngIf="activeTab === 'controls'">
+      <h3>Joint & Target Controls</h3>
+      <div class="xyz-inputs">
+        <label>X: <input type="number" [(ngModel)]="targets.x" step="0.1" (input)="updateTargetMarker()"></label>
+        <label>Y: <input type="number" [(ngModel)]="targets.y" step="0.1" (input)="updateTargetMarker()"></label>
+        <label>Z: <input type="number" [(ngModel)]="targets.z" step="0.1" (input)="updateTargetMarker()"></label>
+        <button (click)="previewTarget()">Preview Target</button>
+        <button (click)="sendTarget()">Send Target</button>
+      </div>
+      <div *ngFor="let ctrl of previewJoints">
+        <label>{{ ctrl.name }}: {{ ctrl.angle | number:'1.0-0' }}°</label>
+        <input
+          type="range"
+          min="-180"
+          max="180"
+          [(ngModel)]="ctrl.angle"
+          (input)="ctrl.joint.setJointValue(THREE.MathUtils.degToRad(ctrl.angle))"
+        />
+      </div>
+      <button (click)="confirmMovement()">Confirm</button>
+      <button (click)="resetJoints()">Reset All Joints</button>
     </div>
-    <button (click)="confirmMovement()">Confirm</button>
-    <button (click)="resetJoints()">Reset All Joints</button>
+
+    <!-- SEQUENCES TAB -->
+    <div *ngIf="activeTab === 'sequences'">
+      <h3>Target Sequences</h3>
+      <div class="sequence-controls">
+        <button (click)="startRecording()" [disabled]="recording">Record</button>
+        <button (click)="stopRecording()" [disabled]="!recording">Stop</button>
+      </div>
+
+      <div class="sequences-list">
+        <div *ngFor="let seq of sequences; let idx = index" class="sequence-item">
+          <h4>
+            {{ seq.name }} ({{ seq.frames.length }} frames)
+            <span *ngIf="recording && currentSequence === seq" class="recording-badge">Recording...</span>
+          </h4>
+
+          <div class="sequence-actions">
+            <button (click)="playSequence(seq)">Play</button>
+            <button (click)="downloadSequence(seq)">Download</button>
+            <button *ngIf="!recording" (click)="deleteSequence(idx)">Delete</button>
+          </div>
+
+          <!-- Expand details of selected sequence -->
+          <ul *ngIf="currentSequence === seq" class="frame-list">
+            <li *ngFor="let f of seq.frames; let i = index">
+              {{ f.time | number:'1.2-2' }}s →
+              X: {{ f.x | number:'1.1-3' }},
+              Y: {{ f.y | number:'1.1-3' }},
+              Z: {{ f.z | number:'1.1-3' }}
+              <button *ngIf="recording" class="delete-frame" (click)="deleteFrame(i)">✕</button>
+            </li>
+          </ul>
+
+          <button *ngIf="currentSequence !== seq" (click)="selectSequence(seq)">View Details</button>
+        </div>
+      </div>
+    </div>
+
   </div>
   <div #rendererContainer class="renderer-container"></div>
 </div>

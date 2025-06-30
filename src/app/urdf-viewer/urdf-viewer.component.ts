@@ -1,6 +1,6 @@
 import {Component, ElementRef, NgZone, OnInit, ViewChild} from '@angular/core';
 import {FormsModule} from '@angular/forms';
-import {DecimalPipe, NgForOf} from '@angular/common';
+import {DecimalPipe, NgForOf, NgIf} from '@angular/common';
 
 import { gsap } from 'gsap';
 import * as THREE from 'three';
@@ -8,18 +8,20 @@ import { OrbitControls } from 'three-stdlib';
 import URDFLoader from 'urdf-loader';
 
 import {PositionService} from '../../shared/services/position.service';
-import {JointControl, SendTargetModel} from '../schemas';
+import {JointControl, SendTargetModel, Sequence} from '../schemas';
 
 @Component({
   selector: 'app-urdf-viewer',
   imports: [
     FormsModule,
     NgForOf,
-    DecimalPipe
+    DecimalPipe,
+    NgIf
   ],
   templateUrl: './urdf-viewer.component.html',
   styleUrl: './urdf-viewer.component.scss'
 })
+
 export class UrdfViewerComponent implements OnInit {
   // THREEJS VARIABLES
   @ViewChild('rendererContainer', {static: true}) rendererContainer!: ElementRef;
@@ -48,6 +50,16 @@ export class UrdfViewerComponent implements OnInit {
 
   bbSpace: number = -5.846990346908569; // OFFSET FOR THE ROBOT
   M_inv = new THREE.Matrix4(); // INVERSE KINEMATICS MATRIX
+
+  // SEQUENCE VARIABLES
+  recording = false;
+  recordStartTime = 0;
+  currentSequence?: Sequence;
+  sequences: Sequence[] = [];
+  activeTab: 'controls'|'sequences' = 'controls';
+  editingSequence = false;
+
+
 
   constructor(private positionService: PositionService, private ngZone: NgZone) {
     this.targets.x = 0.5
@@ -184,13 +196,19 @@ export class UrdfViewerComponent implements OnInit {
   }
 
   createTargetMarker() {
-    const geometry = new THREE.SphereGeometry(0.02, 16, 16);
-    const material = new THREE.MeshBasicMaterial({ color: 0xff0000 });
+    const geometry = new THREE.SphereGeometry(0.05, 16, 16);
+    const material = new THREE.MeshBasicMaterial({
+      color: 0xff0000,
+      depthTest: false,
+      depthWrite: false
+    });
     this.targetMarker = new THREE.Mesh(geometry, material);
-    this.targets.y -= this.bbSpace
+    this.targetMarker.renderOrder = 999;
+    this.targets.y -= this.bbSpace;
     this.scene.add(this.targetMarker);
     this.updateTargetMarker();
   }
+
 
   updateTargetMarker() {
     if (this.targetMarker) {
@@ -259,6 +277,7 @@ export class UrdfViewerComponent implements OnInit {
       y: localPt.y,
       z: localPt.z
     };
+
     this.positionService.getReverseK(payload).subscribe({
       next: (response: Record<string, number>) => {
         console.log('IK response:', response);
@@ -297,6 +316,16 @@ export class UrdfViewerComponent implements OnInit {
       z: localPt.z
     };
 
+    if (this.recording && this.currentSequence) {
+      const t = (performance.now() - this.recordStartTime) / 1000;
+      this.currentSequence.frames.push({
+        time: t,
+        x: this.targets.x,
+        y: this.targets.y,
+        z: this.targets.z
+      });
+    }
+
     this.positionService.getPreviewReverseK(payload).subscribe({
       next: (response: Record<string, number>) => {
         console.log('IK response:', response);
@@ -319,12 +348,65 @@ export class UrdfViewerComponent implements OnInit {
     });
   }
 
-  printState() {
-    const state = this.previewJoints.map(joint => ({
-      name: joint.name,
-      angle: joint.angle
-    }));
-    console.log('Current joint state:', state);
+  // SEQUENCE FUNCTIONS
+  startRecording() {
+    const now = new Date().toISOString();
+    this.currentSequence = {
+      name: `Sequence ${now}`,
+      createdAt: now,
+      frames: []
+    };
+    this.sequences.push(this.currentSequence);
+    this.recording = true;
+    this.recordStartTime = performance.now();
+  }
+
+  stopRecording() {
+    this.recording = false;
+    // you can auto-download here, or leave it for the user
+  }
+
+  playSequence(seq: Sequence) {
+    if (!this.currentSequence) return;
+    this.currentSequence.frames.forEach(frame => {
+      setTimeout(() => {
+        // restore targets
+        this.targets.x = frame.x;
+        this.targets.y = frame.y;
+        this.targets.z = frame.z;
+        // call preview (you could batch them or space them however you like)
+        this.previewTarget();
+      }, frame.time * 1000);
+    });
+  }
+
+  downloadSequence(seq: Sequence) {
+    if (!this.currentSequence) return;
+    const blob = new Blob(
+      [ JSON.stringify(this.currentSequence, null, 2) ],
+      { type: 'application/json' }
+    );
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href     = url;
+    a.download = `${this.currentSequence.name}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  selectSequence(seq: Sequence) {
+    this.currentSequence = seq;
+    this.editingSequence = false;
+  }
+
+  deleteSequence(index: number) {
+    this.sequences.splice(index, 1);
+  }
+
+  deleteFrame(index: number) {
+    if ((this.editingSequence || this.recording) && this.currentSequence) {
+      this.currentSequence.frames.splice(index, 1);
+    }
   }
 
   protected readonly THREE = THREE;

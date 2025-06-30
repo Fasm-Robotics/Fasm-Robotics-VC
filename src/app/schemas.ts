@@ -13,3 +13,16 @@ export interface SendTargetModel {
 export interface ReverseKResponseModel {
   [jointName: string]: number;
 }
+
+export interface TargetFrame {
+  time: number;   // seconds since recording started
+  x: number;
+  y: number;
+  z: number;
+}
+
+export interface Sequence {
+  name: string;
+  createdAt: string;      // ISO timestamp
+  frames: TargetFrame[];
+}
