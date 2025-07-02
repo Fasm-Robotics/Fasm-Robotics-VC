@@ -1,72 +1,82 @@
-<div class="urdf-container">
-  <div class="controls-modal">
-    <!-- Tab Buttons -->
-    <div class="tab-buttons">
-      <button (click)="activeTab='controls'" [class.active]="activeTab==='controls'">Controls</button>
-      <button (click)="activeTab='sequences'" [class.active]="activeTab==='sequences'">Sequences</button>
-    </div>
+<div class="urdf-app">
 
-    <!-- CONTROLS TAB -->
-    <div *ngIf="activeTab === 'controls'">
-      <h3>Joint & Target Controls</h3>
-      <div class="xyz-inputs">
-        <label>X: <input type="number" [(ngModel)]="targets.x" step="0.1" (input)="updateTargetMarker()"></label>
-        <label>Y: <input type="number" [(ngModel)]="targets.y" step="0.1" (input)="updateTargetMarker()"></label>
-        <label>Z: <input type="number" [(ngModel)]="targets.z" step="0.1" (input)="updateTargetMarker()"></label>
-        <button (click)="previewTarget()">Preview Target</button>
-        <button (click)="sendTarget()">Send Target</button>
-      </div>
-      <div *ngFor="let ctrl of previewJoints">
-        <label>{{ ctrl.name }}: {{ ctrl.angle | number:'1.0-0' }}°</label>
-        <input
-          type="range"
-          min="-180"
-          max="180"
-          [(ngModel)]="ctrl.angle"
-          (input)="ctrl.joint.setJointValue(THREE.MathUtils.degToRad(ctrl.angle))"
-        />
-      </div>
-      <button (click)="confirmMovement()">Confirm</button>
-      <button (click)="resetJoints()">Reset All Joints</button>
-    </div>
+  <!-- Main Sidebar -->
+  <div class="main-sidebar">
+    <button (click)="toggleSidebar('sequences')">Sequences</button>
+    <button (click)="toggleSidebar('angleInfo')">Angle Info</button>
+    <button (click)="toggleSidebar('targetControls')">Target Preview</button>
+  </div>
 
-    <!-- SEQUENCES TAB -->
-    <div *ngIf="activeTab === 'sequences'">
-      <h3>Target Sequences</h3>
+  <!-- SEQUENCES SIDEBAR -->
+  <div class="sidebar sequences" *ngIf="sidebars.sequences">
+    <div class="sidebar-header">
+      <span>Sequences</span>
+      <button class="close" (click)="toggleSidebar('sequences')">✕</button>
+    </div>
+    <div class="sidebar-content">
       <div class="sequence-controls">
         <button (click)="startRecording()" [disabled]="recording">Record</button>
         <button (click)="stopRecording()" [disabled]="!recording">Stop</button>
       </div>
-
       <div class="sequences-list">
-        <div *ngFor="let seq of sequences; let idx = index" class="sequence-item">
-          <h4>
-            {{ seq.name }} ({{ seq.frames.length }} frames)
-            <span *ngIf="recording && currentSequence === seq" class="recording-badge">Recording...</span>
-          </h4>
-
-          <div class="sequence-actions">
+        <div *ngFor="let seq of sequences; let i = index" class="sequence-item">
+          <h5>{{ seq.name }} ({{ seq.frames.length }} frames)</h5>
+          <div class="actions">
             <button (click)="playSequence(seq)">Play</button>
             <button (click)="downloadSequence(seq)">Download</button>
-            <button *ngIf="!recording" (click)="deleteSequence(idx)">Delete</button>
+            <button (click)="deleteSequence(i)" [disabled]="recording">Delete</button>
+            <button (click)="selectSequence(seq)">Details</button>
           </div>
-
-          <!-- Expand details of selected sequence -->
           <ul *ngIf="currentSequence === seq" class="frame-list">
-            <li *ngFor="let f of seq.frames; let i = index">
-              {{ f.time | number:'1.2-2' }}s →
-              X: {{ f.x | number:'1.1-3' }},
-              Y: {{ f.y | number:'1.1-3' }},
-              Z: {{ f.z | number:'1.1-3' }}
-              <button *ngIf="recording" class="delete-frame" (click)="deleteFrame(i)">✕</button>
+            <li *ngFor="let f of seq.frames; let idx = index">
+              {{ f.time | number:'1.2-2' }}s → X: {{ f.x | number:'1.1-3' }}, Y: {{ f.y | number:'1.1-3' }}, Z: {{ f.z | number:'1.1-3' }}
+              <button *ngIf="recording" class="delete-frame" (click)="deleteFrame(idx)">✕</button>
             </li>
           </ul>
-
-          <button *ngIf="currentSequence !== seq" (click)="selectSequence(seq)">View Details</button>
         </div>
       </div>
     </div>
-
   </div>
+
+  <!-- ANGLE INFO SIDEBAR -->
+  <div class="sidebar angle-info" *ngIf="sidebars.angleInfo">
+    <div class="sidebar-header">
+      <span>Angle Information</span>
+      <button class="close" (click)="toggleSidebar('angleInfo')">✕</button>
+    </div>
+    <div class="sidebar-content">
+      <ul>
+        <li *ngFor="let realCtrl of joints">
+          <strong>{{ realCtrl.name }}:</strong> {{ realCtrl.angle | number:'1.0-0' }}°
+        </li>
+      </ul>
+      <div class="reset-controls">
+        <button (click)="resetJoints()">Reset Joints</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- TARGET PREVIEW SIDEBAR -->
+  <div class="sidebar target-controls" *ngIf="sidebars.targetControls">
+    <div class="sidebar-header">
+      <span>Target & Preview</span>
+      <button class="close" (click)="toggleSidebar('targetControls')">✕</button>
+    </div>
+    <div class="sidebar-content">
+      <div class="xyz-inputs">
+        <label>X: <input type="number" [(ngModel)]="targets.x" step="0.1" (input)="updateTargetMarker()"></label>
+        <p></p>
+        <label>Y: <input type="number" [(ngModel)]="targets.y" step="0.1" (input)="updateTargetMarker()"></label>
+        <p></p>
+        <label>Z: <input type="number" [(ngModel)]="targets.z" step="0.1" (input)="updateTargetMarker()"></label>
+        <p></p>
+        <button (click)="previewTarget()">Preview</button>
+        <button (click)="sendTarget()">Go</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Renderer -->
   <div #rendererContainer class="renderer-container"></div>
+
 </div>

@@ -56,10 +56,14 @@ export class UrdfViewerComponent implements OnInit {
   recordStartTime = 0;
   currentSequence?: Sequence;
   sequences: Sequence[] = [];
-  activeTab: 'controls'|'sequences' = 'controls';
   editingSequence = false;
 
-
+  // Sidebar variables
+  sidebars = {
+    sequences: true,
+    angleInfo: true,
+    targetControls: true
+  };
 
   constructor(private positionService: PositionService, private ngZone: NgZone) {
     this.targets.x = 0.5
@@ -407,6 +411,11 @@ export class UrdfViewerComponent implements OnInit {
     if ((this.editingSequence || this.recording) && this.currentSequence) {
       this.currentSequence.frames.splice(index, 1);
     }
+  }
+
+  // Toggle sidebar visibility
+  toggleSidebar(name: keyof typeof this.sidebars) {
+    this.sidebars[name] = !this.sidebars[name];
   }
 
   protected readonly THREE = THREE;
