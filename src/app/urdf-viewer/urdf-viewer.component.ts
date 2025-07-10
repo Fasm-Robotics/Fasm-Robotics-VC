@@ -57,6 +57,8 @@ export class UrdfViewerComponent implements OnInit {
   currentSequence?: Sequence;
   sequences: Sequence[] = [];
   editingSequence = false;
+  renameMode = false;
+  nameInput = '';
 
   // Sidebar variables
   sidebars = {
@@ -367,7 +369,17 @@ export class UrdfViewerComponent implements OnInit {
 
   stopRecording() {
     this.recording = false;
-    // you can auto-download here, or leave it for the user
+    if (this.currentSequence) {
+      this.renameMode = true;
+      this.nameInput = this.currentSequence.name;
+    }
+  }
+
+  saveSequenceName() {
+    if (this.currentSequence && this.nameInput.trim()) {
+      this.currentSequence.name = this.nameInput.trim();
+    }
+    this.renameMode = false;
   }
 
   playSequence(seq: Sequence) {

@@ -18,6 +18,12 @@
         <button (click)="startRecording()" [disabled]="recording">Record</button>
         <button (click)="stopRecording()" [disabled]="!recording">Stop</button>
       </div>
+      <div *ngIf="!recording && currentSequence && renameMode" class="rename-sequence">
+        <label>
+          Name: <input type="text" [(ngModel)]="nameInput" placeholder="Enter sequence name" />
+        </label>
+        <button (click)="saveSequenceName()">Save Name</button>
+      </div>
       <div class="sequences-list">
         <div *ngFor="let seq of sequences; let i = index" class="sequence-item">
           <h5>{{ seq.name }} ({{ seq.frames.length }} frames)</h5>
@@ -45,13 +51,23 @@
       <button class="close" (click)="toggleSidebar('angleInfo')">✕</button>
     </div>
     <div class="sidebar-content">
-      <ul>
-        <li *ngFor="let realCtrl of joints">
-          <strong>{{ realCtrl.name }}:</strong> {{ realCtrl.angle | number:'1.0-0' }}°
-        </li>
-      </ul>
-      <div class="reset-controls">
-        <button (click)="resetJoints()">Reset Joints</button>
+      <div class="angle-info-panels">
+        <div class="panel real-angles">
+          <h5>Real Model</h5>
+          <ul>
+            <li *ngFor="let realCtrl of joints">
+              <strong>{{ realCtrl.name }}:</strong> {{ realCtrl.angle | number:'1.0-0' }}°
+            </li>
+          </ul>
+        </div>
+        <div class="panel preview-angles">
+          <h5>Preview Model</h5>
+          <ul>
+            <li *ngFor="let prevCtrl of previewJoints">
+              <strong>{{ prevCtrl.name }}:</strong> {{ prevCtrl.angle | number:'1.0-0' }}°
+            </li>
+          </ul>
+        </div>
       </div>
     </div>
   </div>
