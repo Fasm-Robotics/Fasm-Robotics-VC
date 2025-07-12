@@ -59,6 +59,7 @@ export class UrdfViewerComponent implements OnInit {
   editingSequence = false;
   renameMode = false;
   nameInput = '';
+  movementTime = 0;
 
   // Sidebar variables
   sidebars = {
@@ -322,16 +323,6 @@ export class UrdfViewerComponent implements OnInit {
       z: localPt.z
     };
 
-    if (this.recording && this.currentSequence) {
-      const t = (performance.now() - this.recordStartTime) / 1000;
-      this.currentSequence.frames.push({
-        time: t,
-        x: this.targets.x,
-        y: this.targets.y,
-        z: this.targets.z
-      });
-    }
-
     this.positionService.getPreviewReverseK(payload).subscribe({
       next: (response: Record<string, number>) => {
         console.log('IK response:', response);
@@ -423,6 +414,26 @@ export class UrdfViewerComponent implements OnInit {
     if ((this.editingSequence || this.recording) && this.currentSequence) {
       this.currentSequence.frames.splice(index, 1);
     }
+  }
+
+  saveMovement() {
+    if (!this.recording || !this.currentSequence) return;
+
+    const frames = this.currentSequence.frames;
+    const lastTime = frames.length
+      ? frames[frames.length - 1].time
+      : 0;
+
+    const t = lastTime + this.movementTime;
+
+    frames.push({
+      time: t,
+      x: this.targets.x,
+      y: this.targets.y,
+      z: this.targets.z
+    });
+
+    this.movementTime = 0;
   }
 
   // Toggle sidebar visibility

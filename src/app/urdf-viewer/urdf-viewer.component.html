@@ -88,6 +88,13 @@
         <p></p>
         <button (click)="previewTarget()">Preview</button>
         <button (click)="sendTarget()">Go</button>
+        <div *ngIf="recording" class="save-movement">
+          <label>
+            Time (s):
+            <input type="number" [(ngModel)]="movementTime" step="0.1" />
+          </label>
+          <button (click)="saveMovement()">Save Movement</button>
+        </div>
       </div>
     </div>
   </div>

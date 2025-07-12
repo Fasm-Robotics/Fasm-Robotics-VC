@@ -156,3 +156,43 @@
     }
   }
 }
+
+.save-movement {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 8px;
+
+  label {
+    display: flex;
+    align-items: center;
+    color: #eee;
+    font-size: 0.9rem;
+
+    input {
+      width: 60px;
+      margin-left: 6px;
+      padding: 4px 6px;
+      background: #333;
+      border: 1px solid #555;
+      border-radius: 4px;
+      color: #eee;
+      font-size: 0.9rem;
+    }
+  }
+
+  button {
+    padding: 6px 14px;
+    background: #333;
+    color: #fff;
+    border: none;
+    border-radius: 4px;
+    font-size: 0.9rem;
+    cursor: pointer;
+    transition: background 0.2s;
+
+    &:hover {
+      background: #444;
+    }
+  }
+}
