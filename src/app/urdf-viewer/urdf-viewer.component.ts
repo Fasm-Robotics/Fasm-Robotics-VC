@@ -39,6 +39,10 @@ export class UrdfViewerComponent implements OnInit {
   // URDF JOINTS
   joints: JointControl[] = [];
   previewJoints: JointControl[] = [];
+  jointMaps: {
+    real:   Record<string,JointControl>,
+    preview: Record<string,JointControl>
+  } = { real: {}, preview: {} };
 
   // TARGET 3D
   targetMarker!: THREE.Mesh;
@@ -47,6 +51,7 @@ export class UrdfViewerComponent implements OnInit {
     y: 0,
     z: 0
   }
+  hasBeenPreviewed = false;
 
   bbSpace: number = -5.846990346908569; // OFFSET FOR THE ROBOT
   M_inv = new THREE.Matrix4(); // INVERSE KINEMATICS MATRIX
@@ -78,6 +83,11 @@ export class UrdfViewerComponent implements OnInit {
     this.init();
     this.animate();
     this.createTargetMarker();
+  }
+
+  ngOnChanges() {
+    this.jointMaps.real   = Object.fromEntries(this.joints.map(j   => [j.name,   j]));
+    this.jointMaps.preview = Object.fromEntries(this.previewJoints.map(j => [j.name, j]));
   }
 
   // ---------------ALL THESE FUNCTIONS ARE FOR THE URDF VIEWER------------------------------------
@@ -218,12 +228,21 @@ export class UrdfViewerComponent implements OnInit {
 
 
   updateTargetMarker() {
+    console.log('update targetMarker', this.hasBeenPreviewed);
     if (this.targetMarker) {
       this.targetMarker.position.set(this.targets.x, this.targets.y, this.targets.z);
+    }
+    if (this.hasBeenPreviewed) {
+      this.hasBeenPreviewed = false
     }
   }
 
   // ---------------------------------------------------------------
+
+  getAngle(name: string, preview = false): number {
+    const map = preview ? this.jointMaps.preview : this.jointMaps.real;
+    return map[name]?.angle ?? 0;
+  }
 
   // UPDATE JOINTS FUNCTIONS
   updateJoint(ctrl: JointControl, angleInDegrees: boolean = true): void {
@@ -234,21 +253,6 @@ export class UrdfViewerComponent implements OnInit {
     ctrl.joint.setJointValue(rad);
   }
 
-  // ON CONFIRM BUTTON CLICK
-  confirmMovement() {
-    this.joints.forEach((ctrl, i )=> {
-      const targetAngle = this.previewJoints[i].angle;
-      gsap.to(ctrl, {
-        angle: targetAngle,
-        duration: 1,
-        ease: 'power2.inOut',
-        onUpdate: () => {
-        const rad = THREE.MathUtils.degToRad(ctrl.angle);
-        ctrl.joint.setJointValue(rad);
-        },
-      });
-    });
-  }
 
   // RESET JOINTS TO BASE POSITION
   resetJoints(): void {
@@ -268,6 +272,14 @@ export class UrdfViewerComponent implements OnInit {
         onUpdate: () => this.updateJoint(ctrl),
       });
     });
+  }
+
+  unPreviewed(): void {
+    this.hasBeenPreviewed = false;
+  }
+
+  hasPreviewed(): void {
+    this.hasBeenPreviewed = true;
   }
 
   sendTarget(): void {
@@ -336,6 +348,7 @@ export class UrdfViewerComponent implements OnInit {
               onUpdate: () => this.updateJoint(ctrl, true),
             });
           }
+          this.hasPreviewed();
         });
       },
       error: (err) => {
@@ -408,6 +421,40 @@ export class UrdfViewerComponent implements OnInit {
 
   deleteSequence(index: number) {
     this.sequences.splice(index, 1);
+    this.renameMode = false;
+  }
+
+  uploadSequence(event: Event) {
+    const input = event.target as HTMLInputElement;
+    if (!input.files?.length) {
+      return;
+    }
+
+    const file = input.files[0];
+    const reader = new FileReader();
+
+    reader.onload = () => {
+      try {
+        // Assuming your Sequence interface lives here
+        const seq: Sequence = JSON.parse(reader.result as string);
+
+        // Optional: validate seq.frames, seq.name, etc.
+        if (!Array.isArray(seq.frames)) {
+          throw new Error("Invalid sequence format");
+        }
+
+        this.sequences.push(seq);
+        // Optionally select it immediately:
+        this.selectSequence(seq);
+        // Reset the input so you can re-upload the same file if desired
+        input.value = '';
+      } catch (e) {
+        console.error("Failed to load sequence:", e);
+        alert("Invalid sequence JSON file.");
+      }
+    };
+
+    reader.readAsText(file);
   }
 
   deleteFrame(index: number) {

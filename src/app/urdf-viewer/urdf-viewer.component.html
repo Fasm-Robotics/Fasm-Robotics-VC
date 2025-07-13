@@ -2,9 +2,10 @@
 
   <!-- Main Sidebar -->
   <div class="main-sidebar">
+    <button class="resetJoints" (click)="resetJoints()">Reinitialiser les angles</button>
     <button (click)="toggleSidebar('sequences')">Sequences</button>
-    <button (click)="toggleSidebar('angleInfo')">Angle Info</button>
-    <button (click)="toggleSidebar('targetControls')">Target Preview</button>
+    <button (click)="toggleSidebar('angleInfo')">Informations Angles</button>
+    <button (click)="toggleSidebar('targetControls')">Previsualisation Cible</button>
   </div>
 
   <!-- SEQUENCES SIDEBAR -->
@@ -15,22 +16,34 @@
     </div>
     <div class="sidebar-content">
       <div class="sequence-controls">
-        <button (click)="startRecording()" [disabled]="recording">Record</button>
+        <button (click)="startRecording()" [disabled]="recording">Enregistrer</button>
         <button (click)="stopRecording()" [disabled]="!recording">Stop</button>
+        <label class="upload-seq">
+          <input
+            #fileInput
+            type="file"
+            accept=".json"
+            hidden
+            (change)="uploadSequence($event)"
+          />
+          <button type="button" (click)="fileInput.click()">
+            Ajouter JSON
+          </button>
+        </label>
       </div>
       <div *ngIf="!recording && currentSequence && renameMode" class="rename-sequence">
         <label>
           Name: <input type="text" [(ngModel)]="nameInput" placeholder="Enter sequence name" />
         </label>
-        <button (click)="saveSequenceName()">Save Name</button>
+        <button (click)="saveSequenceName()">Sauvegarder</button>
       </div>
       <div class="sequences-list">
         <div *ngFor="let seq of sequences; let i = index" class="sequence-item">
           <h5>{{ seq.name }} ({{ seq.frames.length }} frames)</h5>
           <div class="actions">
-            <button (click)="playSequence(seq)">Play</button>
-            <button (click)="downloadSequence(seq)">Download</button>
-            <button (click)="deleteSequence(i)" [disabled]="recording">Delete</button>
+            <button (click)="playSequence(seq)">Jouer</button>
+            <button (click)="downloadSequence(seq)">Télecharger</button>
+            <button (click)="deleteSequence(i)" [disabled]="recording">Supprimer</button>
             <button (click)="selectSequence(seq)">Details</button>
           </div>
           <ul *ngIf="currentSequence === seq" class="frame-list">
@@ -47,24 +60,58 @@
   <!-- ANGLE INFO SIDEBAR -->
   <div class="sidebar angle-info" *ngIf="sidebars.angleInfo">
     <div class="sidebar-header">
-      <span>Angle Information</span>
+      <span>Informations Angles</span>
       <button class="close" (click)="toggleSidebar('angleInfo')">✕</button>
     </div>
     <div class="sidebar-content">
       <div class="angle-info-panels">
+        <!-- Real Model Angles -->
         <div class="panel real-angles">
-          <h5>Real Model</h5>
+          <h5>ÉPAULE</h5>
           <ul>
-            <li *ngFor="let realCtrl of joints">
-              <strong>{{ realCtrl.name }}:</strong> {{ realCtrl.angle | number:'1.0-0' }}°
+            <li>
+              <strong>Moteur 1:</strong>
+              {{ getAngle('SH1') | number:'1.0-0' }}°
+            </li>
+            <li>
+              <strong>Moteur 2:</strong>
+              {{ getAngle('SH2') | number:'1.0-0' }}°
+            </li>
+            <li>
+              <strong>Moteur 3:</strong>
+              {{ getAngle('SH3') | number:'1.0-0' }}°
+            </li>
+          </ul>
+          <h5>BRAS</h5>
+          <ul>
+            <li>
+              <strong>Moteur 1:</strong>
+              {{ getAngle('EL1') | number:'1.0-0' }}°
             </li>
           </ul>
         </div>
+        <!-- Preview Model Angles -->
         <div class="panel preview-angles">
-          <h5>Preview Model</h5>
+          <h5>ÉPAULE</h5>
           <ul>
-            <li *ngFor="let prevCtrl of previewJoints">
-              <strong>{{ prevCtrl.name }}:</strong> {{ prevCtrl.angle | number:'1.0-0' }}°
+            <li>
+              <strong>Moteur 1:</strong>
+              {{ getAngle('SH1', true) | number:'1.0-0' }}°
+            </li>
+            <li>
+              <strong>Moteur 2:</strong>
+              {{ getAngle('SH2', true) | number:'1.0-0' }}°
+            </li>
+            <li>
+              <strong>Moteur 3:</strong>
+              {{ getAngle('SH3', true) | number:'1.0-0' }}°
+            </li>
+          </ul>
+          <h5>BRAS</h5>
+          <ul>
+            <li>
+              <strong>Moteur 1:</strong>
+              {{ getAngle('EL1', true) | number:'1.0-0' }}°
             </li>
           </ul>
         </div>
@@ -72,10 +119,11 @@
     </div>
   </div>
 
+
   <!-- TARGET PREVIEW SIDEBAR -->
   <div class="sidebar target-controls" *ngIf="sidebars.targetControls">
     <div class="sidebar-header">
-      <span>Target & Preview</span>
+      <span>Previsualisation Cible</span>
       <button class="close" (click)="toggleSidebar('targetControls')">✕</button>
     </div>
     <div class="sidebar-content">
@@ -86,14 +134,14 @@
         <p></p>
         <label>Z: <input type="number" [(ngModel)]="targets.z" step="0.1" (input)="updateTargetMarker()"></label>
         <p></p>
-        <button (click)="previewTarget()">Preview</button>
-        <button (click)="sendTarget()">Go</button>
+        <button (click)="previewTarget()">Previsualisation</button>
+        <button (click)="sendTarget(); unPreviewed()" [disabled]="!hasBeenPreviewed">Go</button>
         <div *ngIf="recording" class="save-movement">
           <label>
-            Time (s):
+            Temps:
             <input type="number" [(ngModel)]="movementTime" step="0.1" />
           </label>
-          <button (click)="saveMovement()">Save Movement</button>
+          <button (click)="saveMovement()">Sauvegarder le mouvement</button>
         </div>
       </div>
     </div>
