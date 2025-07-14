@@ -258,6 +258,10 @@ export class UrdfViewerComponent implements OnInit {
     return this.previewJoints.find(j => j.name === name);
   }
 
+  getLiveJoint(name: string): JointControl | undefined {
+    return this.liveJoints.find(j => j.name === name);
+  }
+
   // UPDATE JOINTS FUNCTIONS
   updateJoint(ctrl: JointControl, angleInDegrees: boolean = true): void {
     const rad = angleInDegrees
