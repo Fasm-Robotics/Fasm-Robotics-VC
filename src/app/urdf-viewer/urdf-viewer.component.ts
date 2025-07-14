@@ -50,6 +50,7 @@ export class UrdfViewerComponent implements OnInit {
   // URDF JOINTS
   joints: JointControl[] = [];
   previewJoints: JointControl[] = [];
+  liveJoints: JointControl[] = [];
 
   // TARGET 3D
   targetMarker!: THREE.Mesh;
@@ -176,6 +177,7 @@ export class UrdfViewerComponent implements OnInit {
         if (joint.jointType === 'fixed') continue;
         const real = true;
         this.joints.push({ real, name, angle: 0, joint });
+        this.liveJoints.push({ real, name, angle: 0, joint });
       }
       for (const name in (this.previewRobot as any).joints) {
         const joint = (this.previewRobot as any).joints[name];
@@ -183,7 +185,7 @@ export class UrdfViewerComponent implements OnInit {
         const real = false;
         this.previewJoints.push({ real, name, angle: 0, joint });
       }
-      for (const joint of this.joints) {
+      for (const joint of this.liveJoints) {
         this.getMotorAngle(joint);
       }
       console.log('Joints loaded:', this.previewJoints);
@@ -262,10 +264,12 @@ export class UrdfViewerComponent implements OnInit {
       ? THREE.MathUtils.degToRad(ctrl.angle)
       : ctrl.angle;
     ctrl.joint.setJointValue(rad);
-    this.getMotorAngle(ctrl)
   }
 
   getMotorAngle(ctrl: JointControl): void {
+    if (ctrl.name == "EL1") {
+      return;
+    }
     this.positionService.getMotorAngle(ctrl.name)
       .subscribe({
         next: (resp: MotorAngleResponse) => {
@@ -379,6 +383,7 @@ export class UrdfViewerComponent implements OnInit {
               onUpdate: () => this.updateJoint(ctrl, true),
             });
           }
+          this.getMotorAngle(ctrl)
         });
       },
       error: (err) => {
