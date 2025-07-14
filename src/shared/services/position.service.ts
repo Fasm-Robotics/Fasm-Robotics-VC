@@ -1,6 +1,6 @@
 import { Injectable } from '@angular/core';
 import { PositionApiService } from './position.api.service';
-import {ReverseKResponseModel, SendTargetModel, setMotorAngleModel} from '../../app/schemas';
+import {MotorAngleResponse, ReverseKResponseModel, SendTargetModel, setMotorAngleModel} from '../../app/schemas';
 import {map} from 'rxjs';
 
 @Injectable({
@@ -47,6 +47,13 @@ export class PositionService {
     return this.positionApiService.setMotorAngle(data)
       .pipe(
         map(response => response)
+      );
+  }
+
+  getMotorAngle(nameMotor: string) {
+    return this.positionApiService.getMotorAngle(nameMotor)
+      .pipe(
+        map((response: MotorAngleResponse) => response)
       );
   }
 }

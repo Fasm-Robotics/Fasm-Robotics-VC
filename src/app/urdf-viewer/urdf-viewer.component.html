@@ -67,6 +67,32 @@
     </div>
     <div class="sidebar-content">
       <div class="angle-info-panels">
+        <!-- live Model Angles -->
+        <div class="panel real-angles">
+          <h5>Angles Live</h5>
+          <h5>ÉPAULE</h5>
+          <ul>
+            <li>
+              <strong>Moteur 1:</strong>
+              {{ getRealJoint('SH1')?.angle | number:'1.0-0' }}°
+            </li>
+            <li>
+              <strong>Moteur 2:</strong>
+              {{ getRealJoint('SH2')?.angle  | number:'1.0-0' }}°
+            </li>
+            <li>
+              <strong>Moteur 3:</strong>
+              {{ getRealJoint('SH3')?.angle  | number:'1.0-0' }}°
+            </li>
+          </ul>
+          <h5>BRAS</h5>
+          <ul>
+            <li>
+              <strong>Moteur 1:</strong>
+              {{ getRealJoint('EL1')?.angle  | number:'1.0-0' }}°
+            </li>
+          </ul>
+        </div>
         <!-- Real Model Angles -->
         <div class="panel real-angles">
           <h5>Angles Réels</h5>

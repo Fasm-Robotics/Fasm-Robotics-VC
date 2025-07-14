@@ -8,7 +8,7 @@ import { OrbitControls } from 'three-stdlib';
 import URDFLoader from 'urdf-loader';
 
 import {PositionService} from '../../shared/services/position.service';
-import {JointControl, SendTargetModel, Sequence, setMotorAngleModel} from '../schemas';
+import {JointControl, MotorAngleResponse, SendTargetModel, Sequence, setMotorAngleModel} from '../schemas';
 
 @Component({
   selector: 'app-urdf-viewer',
@@ -183,6 +183,9 @@ export class UrdfViewerComponent implements OnInit {
         const real = false;
         this.previewJoints.push({ real, name, angle: 0, joint });
       }
+      for (const joint of this.joints) {
+        this.getMotorAngle(joint);
+      }
       console.log('Joints loaded:', this.previewJoints);
     };
 
@@ -259,6 +262,27 @@ export class UrdfViewerComponent implements OnInit {
       ? THREE.MathUtils.degToRad(ctrl.angle)
       : ctrl.angle;
     ctrl.joint.setJointValue(rad);
+    this.getMotorAngle(ctrl)
+  }
+
+  getMotorAngle(ctrl: JointControl): void {
+    this.positionService.getMotorAngle(ctrl.name)
+      .subscribe({
+        next: (resp: MotorAngleResponse) => {
+          if (resp.status === 'success') {
+            const deg = resp.angle_degrees;
+            console.log(`Motor ${ctrl.name} angle:`, deg);
+            ctrl.angle = deg;
+          } else {
+            console.error(`API returned error status for ${ctrl.name}`, resp);
+            alert(`Impossible de récupérer l'angle du moteur ${ctrl.name} (status=${resp.status})`);
+          }
+        },
+        error: err => {
+          console.error(`Error getting motor ${ctrl.name} angle:`, err);
+          alert(`Erreur de récupération de l'angle du moteur ${ctrl.name} : ${err.message || err}`);
+        }
+      });
   }
 
   setMotorAngle(ctrl: JointControl): void {
@@ -439,7 +463,7 @@ export class UrdfViewerComponent implements OnInit {
         this.targets.y = frame.y;
         this.targets.z = frame.z;
         // call preview (you could batch them or space them however you like)
-        this.previewTarget();
+        this.sendTarget();
       }, frame.time * 1000);
     });
   }

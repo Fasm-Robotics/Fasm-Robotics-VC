@@ -32,3 +32,8 @@ export interface setMotorAngleModel {
   motor: string;
   angle: number;
 }
+
+export interface MotorAngleResponse {
+  status: 'success' | 'error';
+  angle_degrees: number;
+}

@@ -1,6 +1,6 @@
 import { Injectable } from '@angular/core';
 import { HttpClient } from "@angular/common/http";
-import {ReverseKResponseModel, SendTargetModel, setMotorAngleModel} from "../../app/schemas";
+import {MotorAngleResponse, ReverseKResponseModel, SendTargetModel, setMotorAngleModel} from "../../app/schemas";
 
 @Injectable({
   providedIn: 'root'
@@ -12,6 +12,7 @@ export class PositionApiService {
   baseUrlSetIdle = 'http://127.0.0.1:8000/set-idle';
   baseUrlCalibrateSync = 'http://127.0.0.1:8000/calibrate-sync';
   baseUrlSetMotorAngle = 'http://127.0.0.1:8000/set-motor-angle';
+  baseUrlGetMotorAngle = 'http://127.0.0.1:8000/get-motor-angle';
   dataSetData = {
     "motors" : [
       "SH1",
@@ -42,5 +43,13 @@ export class PositionApiService {
 
   setMotorAngle(data : setMotorAngleModel) {
     return this.http.post(this.baseUrlSetMotorAngle, data);
+  }
+
+  getMotorAngle(nameMotor: string) {
+    // fill in parameter "motor" = nameMotor
+    const data = {
+      "motor": nameMotor
+    };
+    return this.http.get<MotorAngleResponse>(this.baseUrlGetMotorAngle, {params: data});
   }
 }
