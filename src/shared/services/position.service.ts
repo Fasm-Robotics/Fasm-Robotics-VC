@@ -1,6 +1,6 @@
 import { Injectable } from '@angular/core';
 import { PositionApiService } from './position.api.service';
-import { ReverseKResponseModel, SendTargetModel } from '../../app/schemas';
+import {ReverseKResponseModel, SendTargetModel, setMotorAngleModel} from '../../app/schemas';
 import {map} from 'rxjs';
 
 @Injectable({
@@ -19,6 +19,34 @@ export class PositionService {
     return this.positionApiService.getPreviewReverseK(data)
       .pipe(
         map((response: ReverseKResponseModel) => response)
+      );
+  }
+
+  setClosedLoop() {
+    return this.positionApiService.setClosedLoop()
+      .pipe(
+        map(response => response)
+      );
+  }
+
+  setIdle() {
+    return this.positionApiService.setIdle()
+      .pipe(
+        map(response => response)
+      );
+  }
+
+  calibrateSync() {
+    return this.positionApiService.calibrateSync()
+      .pipe(
+        map(response => response)
+      );
+  }
+
+  setMotorAngle(data: setMotorAngleModel) {
+    return this.positionApiService.setMotorAngle(data)
+      .pipe(
+        map(response => response)
       );
   }
 }

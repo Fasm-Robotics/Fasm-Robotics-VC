@@ -3,9 +3,11 @@
   <!-- Main Sidebar -->
   <div class="main-sidebar">
     <button class="resetJoints" (click)="resetJoints()">Reinitialiser les angles</button>
-    <button (click)="toggleSidebar('sequences')">Sequences</button>
-    <button (click)="toggleSidebar('angleInfo')">Informations Angles</button>
-    <button (click)="toggleSidebar('targetControls')">Previsualisation Cible</button>
+    <button (click)="toggleSidebar('sequences')" [disabled]="manualMode">Sequences</button>
+    <button (click)="toggleSidebar('angleInfo')" [disabled]="manualMode">Informations Angles</button>
+    <button (click)="toggleSidebar('targetControls')" [disabled]="manualMode">Previsualisation Cible</button>
+    <button (click)="toggleManualMode()">Mode manuel</button>
+    <button (click)="toggleSidebar('settings')">Paramètres</button>
   </div>
 
   <!-- SEQUENCES SIDEBAR -->
@@ -67,51 +69,53 @@
       <div class="angle-info-panels">
         <!-- Real Model Angles -->
         <div class="panel real-angles">
+          <h5>Angles Réels</h5>
           <h5>ÉPAULE</h5>
           <ul>
             <li>
               <strong>Moteur 1:</strong>
-              {{ getAngle('SH1') | number:'1.0-0' }}°
+              {{ getRealJoint('SH1')?.angle | number:'1.0-0' }}°
             </li>
             <li>
               <strong>Moteur 2:</strong>
-              {{ getAngle('SH2') | number:'1.0-0' }}°
+              {{ getRealJoint('SH2')?.angle  | number:'1.0-0' }}°
             </li>
             <li>
               <strong>Moteur 3:</strong>
-              {{ getAngle('SH3') | number:'1.0-0' }}°
+              {{ getRealJoint('SH3')?.angle  | number:'1.0-0' }}°
             </li>
           </ul>
           <h5>BRAS</h5>
           <ul>
             <li>
               <strong>Moteur 1:</strong>
-              {{ getAngle('EL1') | number:'1.0-0' }}°
+              {{ getRealJoint('EL1')?.angle  | number:'1.0-0' }}°
             </li>
           </ul>
         </div>
         <!-- Preview Model Angles -->
         <div class="panel preview-angles">
+          <h5>Angles Prévisualisés</h5>
           <h5>ÉPAULE</h5>
           <ul>
             <li>
               <strong>Moteur 1:</strong>
-              {{ getAngle('SH1', true) | number:'1.0-0' }}°
+              {{ getPreviewJoint('SH1')?.angle  | number:'1.0-0' }}°
             </li>
             <li>
               <strong>Moteur 2:</strong>
-              {{ getAngle('SH2', true) | number:'1.0-0' }}°
+              {{ getPreviewJoint('SH2')?.angle | number:'1.0-0' }}°
             </li>
             <li>
               <strong>Moteur 3:</strong>
-              {{ getAngle('SH3', true) | number:'1.0-0' }}°
+              {{ getPreviewJoint('SH3')?.angle | number:'1.0-0' }}°
             </li>
           </ul>
           <h5>BRAS</h5>
           <ul>
             <li>
               <strong>Moteur 1:</strong>
-              {{ getAngle('EL1', true) | number:'1.0-0' }}°
+              {{ getPreviewJoint('EL1')?.angle | number:'1.0-0' }}°
             </li>
           </ul>
         </div>
@@ -144,6 +148,58 @@
           <button (click)="saveMovement()">Sauvegarder le mouvement</button>
         </div>
       </div>
+    </div>
+  </div>
+
+  <!-- MANUAL MODE SIDEBAR -->
+  <div class="sidebar manual-mode"  *ngIf="sidebars.manualControls">
+    <div class="sidebar-header">
+      <span>Mode Manuel</span>
+    </div>
+    <div class="sidebar-content manual-controls">
+      <!-- Mode Toggle -->
+      <div class="manual-mode-toggle">
+        <button [class.active]="modeManual === 'live'" (click)="modeManual='live'">Mode Live</button>
+        <button [class.active]="modeManual === 'preview'" (click)="modeManual='preview'">Mode Preview</button>
+      </div>
+      <!-- Joint Controls -->
+      <div *ngFor="let ctrl of (modeManual==='live' ? joints : previewJoints)" class="manual-control-row">
+        <label class="manual-label">{{ jointLabels[ctrl.name] || ctrl.name }}</label>
+        <input type="range"
+               min="-180"
+               max="180"
+               [(ngModel)]="ctrl.angle"
+               (input)="setMotorAngle(ctrl)" />
+        <input class="manual-input"
+               type="number"
+               min="-180"
+               max="180"
+               [(ngModel)]="ctrl.angle"
+               (change)="setMotorAngle(ctrl)" />
+      </div>
+    </div>
+  </div>
+
+  <div class="sidebar settings"  *ngIf="sidebars.settings">
+    <div class="sidebar-header">
+      <span>Paramètres</span>
+      <button class="close" (click)="toggleSidebar('settings')">✕</button>
+    </div>
+    <div class="sidebar-content">
+      <button class="param-btn"
+              [class.active]="mode==='closedLoop'"
+              (click)="setClosedLoopMode()">
+        Closed Loop
+      </button>
+      <button class="param-btn"
+              [class.active]="mode==='idle'"
+              (click)="setIdleMode()">
+        Idle
+      </button>
+      <button class="calibrate-btn"
+              (click)="calibrateSync()">
+        Calibrate
+      </button>
     </div>
   </div>
 

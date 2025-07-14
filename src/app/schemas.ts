@@ -1,4 +1,5 @@
 export interface JointControl {
+  real: boolean;
   name: string;
   angle: number;
   joint: any;
@@ -25,4 +26,9 @@ export interface Sequence {
   name: string;
   createdAt: string;      // ISO timestamp
   frames: TargetFrame[];
+}
+
+export interface setMotorAngleModel {
+  motor: string;
+  angle: number;
 }

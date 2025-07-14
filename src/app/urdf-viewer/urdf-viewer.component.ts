@@ -8,7 +8,7 @@ import { OrbitControls } from 'three-stdlib';
 import URDFLoader from 'urdf-loader';
 
 import {PositionService} from '../../shared/services/position.service';
-import {JointControl, SendTargetModel, Sequence} from '../schemas';
+import {JointControl, SendTargetModel, Sequence, setMotorAngleModel} from '../schemas';
 
 @Component({
   selector: 'app-urdf-viewer',
@@ -36,13 +36,20 @@ export class UrdfViewerComponent implements OnInit {
   manager = new THREE.LoadingManager();
   loader = new URDFLoader(this.manager);
 
+  manualMode = false;
+  modeManual: 'live' | 'preview' = 'preview';
+  mode: 'closedLoop' | 'idle' = 'idle';
+
+  jointLabels: Record<string, string> = {
+    SH1: 'Épaule : Moteur 1',
+    SH2: 'Moteur 2',
+    SH3: 'Moteur 3',
+    EL1: 'Bras : Moteur 1',
+  };
+
   // URDF JOINTS
   joints: JointControl[] = [];
   previewJoints: JointControl[] = [];
-  jointMaps: {
-    real:   Record<string,JointControl>,
-    preview: Record<string,JointControl>
-  } = { real: {}, preview: {} };
 
   // TARGET 3D
   targetMarker!: THREE.Mesh;
@@ -70,7 +77,9 @@ export class UrdfViewerComponent implements OnInit {
   sidebars = {
     sequences: true,
     angleInfo: true,
-    targetControls: true
+    targetControls: true,
+    manualControls: false,
+    settings: true
   };
 
   constructor(private positionService: PositionService, private ngZone: NgZone) {
@@ -83,11 +92,6 @@ export class UrdfViewerComponent implements OnInit {
     this.init();
     this.animate();
     this.createTargetMarker();
-  }
-
-  ngOnChanges() {
-    this.jointMaps.real   = Object.fromEntries(this.joints.map(j   => [j.name,   j]));
-    this.jointMaps.preview = Object.fromEntries(this.previewJoints.map(j => [j.name, j]));
   }
 
   // ---------------ALL THESE FUNCTIONS ARE FOR THE URDF VIEWER------------------------------------
@@ -170,12 +174,14 @@ export class UrdfViewerComponent implements OnInit {
       for (const name in (this.robot as any).joints) {
         const joint = (this.robot as any).joints[name];
         if (joint.jointType === 'fixed') continue;
-        this.joints.push({ name, angle: 0, joint });
+        const real = true;
+        this.joints.push({ real, name, angle: 0, joint });
       }
       for (const name in (this.previewRobot as any).joints) {
         const joint = (this.previewRobot as any).joints[name];
         if (joint.jointType === 'fixed') continue;
-        this.previewJoints.push({ name, angle: 0, joint });
+        const real = false;
+        this.previewJoints.push({ real, name, angle: 0, joint });
       }
       console.log('Joints loaded:', this.previewJoints);
     };
@@ -239,9 +245,12 @@ export class UrdfViewerComponent implements OnInit {
 
   // ---------------------------------------------------------------
 
-  getAngle(name: string, preview = false): number {
-    const map = preview ? this.jointMaps.preview : this.jointMaps.real;
-    return map[name]?.angle ?? 0;
+  getRealJoint(name: string): JointControl | undefined {
+    return this.joints.find(j => j.name === name);
+  }
+
+  getPreviewJoint(name: string): JointControl | undefined {
+    return this.previewJoints.find(j => j.name === name);
   }
 
   // UPDATE JOINTS FUNCTIONS
@@ -249,8 +258,44 @@ export class UrdfViewerComponent implements OnInit {
     const rad = angleInDegrees
       ? THREE.MathUtils.degToRad(ctrl.angle)
       : ctrl.angle;
-    console.log(rad);
     ctrl.joint.setJointValue(rad);
+  }
+
+  setMotorAngle(ctrl: JointControl): void {
+    const jointName: string = ctrl.name;
+    const angle = ctrl.angle;
+    if (!ctrl.real) {
+      console.warn(`Joint ${ctrl.name} is not a real motor, skipping setMotorAngle.`);
+      gsap.to(ctrl, {
+        angle: angle,
+        duration: 1,
+        ease: 'power2.inOut',
+        onUpdate: () => this.updateJoint(ctrl, true),
+      });
+      return;
+    }
+    const payload: setMotorAngleModel = {
+      motor: jointName,
+      angle: angle
+    }
+    this.positionService.setMotorAngle(payload).subscribe({
+      next: () => {
+        console.log(`Motor ${jointName} set to angle ${angle}`);
+        const ctrl = this.getRealJoint(jointName);
+        if (ctrl) {
+          gsap.to(ctrl, {
+            angle: angle,
+            duration: 1,
+            ease: 'power2.inOut',
+            onUpdate: () => this.updateJoint(ctrl, true),
+          });
+        }
+      },
+      error: (err) => {
+        console.error(`Error setting motor ${jointName} angle:`, err);
+        alert(`Erreur de réglage du moteur ${jointName} : ${err.message || err}`);
+      },
+    });
   }
 
 
@@ -303,12 +348,11 @@ export class UrdfViewerComponent implements OnInit {
         this.joints.forEach(ctrl => {
           const jointName = ctrl.name;
           if (jointName in response) {
-            const rad = response[jointName] * Math.PI / 180;
             gsap.to(ctrl, {
-              angle: rad,
+              angle: response[jointName],
               duration: 1,
               ease: 'power2.inOut',
-              onUpdate: () => this.updateJoint(ctrl, false),
+              onUpdate: () => this.updateJoint(ctrl, true),
             });
           }
         });
@@ -485,7 +529,67 @@ export class UrdfViewerComponent implements OnInit {
 
   // Toggle sidebar visibility
   toggleSidebar(name: keyof typeof this.sidebars) {
-    this.sidebars[name] = !this.sidebars[name];
+      this.sidebars[name] = !this.sidebars[name];
+  }
+
+  // Toggle manual mode
+  toggleManualMode() {
+    this.manualMode = !this.manualMode;
+    this.sidebars.manualControls = !this.sidebars.manualControls;
+    if (this.manualMode) {
+      this.sidebars.sequences = false;
+      this.sidebars.angleInfo = false;
+      this.sidebars.targetControls = false;
+    } else {
+      this.sidebars.sequences = true;
+      this.sidebars.angleInfo = true;
+      this.sidebars.targetControls = true;
+    }
+  }
+
+  // Setting functions
+
+  calibrateSync() {
+    this.positionService.calibrateSync().subscribe({
+      next: () => {
+        console.log('Calibration sync successful');
+        alert('Calibration sync successful');
+      },
+      error: (err) => {
+        console.error('Calibration sync error:', err);
+        alert(`Calibration sync error: ${err.message || err}`);
+      }
+    });
+  }
+
+  setIdleMode() {
+    this.positionService.setIdle().subscribe({
+      next: () => {
+        console.log('Set to idle mode');
+        this.setMode('idle');
+      },
+      error: (err) => {
+        console.error('Set idle mode error:', err);
+        alert(`Set idle mode error: ${err.message || err}`);
+      }
+    })
+  }
+
+  setClosedLoopMode() {
+    this.positionService.setClosedLoop().subscribe({
+      next: () => {
+        console.log('Set to closed loop mode');
+        this.setMode('closedLoop');
+      },
+      error: (err) => {
+        console.error('Set closed loop mode error:', err);
+        alert(`Set closed loop mode error: ${err.message || err}`);
+      }
+    })
+  }
+
+  setMode(m: 'closedLoop'|'idle') {
+    this.mode = m;
   }
 
   protected readonly THREE = THREE;

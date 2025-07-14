@@ -6,8 +6,8 @@
   .main-sidebar {
     position: absolute;
     top: 10px;
-    left: 50%;
-    transform: translateX(-50%);
+    left: 48%;
+    transform: translateX(-47%);
     display: flex;
     flex-direction: row;
     gap: 16px;
@@ -18,6 +18,11 @@
       &:hover {
         background: darkred;
       }
+    }
+
+    button:disabled {
+      cursor: not-allowed;
+      pointer-events: all !important;
     }
 
     button {
@@ -180,11 +185,21 @@
 
     &.sequences {
       left: 20px;
-      top: 290px;
+      top: 325px;
     }
 
     &.target-controls {
       top: 10px;
+      right: 20px;
+    }
+
+    &.manual-mode {
+      top: 10px;
+      left: 20px;
+    }
+
+    &.settings {
+      top: 230px;
       right: 20px;
     }
   }
@@ -226,6 +241,122 @@
 
     &:hover {
       background: #444;
+    }
+  }
+}
+
+/* Manual Mode Sidebar Specific Styles */
+.sidebar.manual-mode {
+  width: 300px;           // adjust if needed
+  background-color: rgba(20,20,20,0.95);
+  border-radius: 4px;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.5);
+
+  .sidebar-header {
+    background: #222;
+    padding: 12px;
+    border-bottom: 1px solid #444;
+  }
+
+  .sidebar-content.manual-controls {
+    padding: 12px;
+
+    /* Toggle buttons for Live vs Preview */
+    .manual-mode-toggle {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 16px;
+
+      button {
+        flex: 1;
+        padding: 6px 0;
+        background: #333;
+        color: #fff;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        transition: background 0.2s;
+
+        &.active {
+          background: #555;
+        }
+
+        &:hover {
+          background: #444;
+        }
+      }
+    }
+
+    /* Each joint slider + input row */
+    .manual-control-row {
+      display: flex;
+      align-items: center;
+      margin-bottom: 12px;
+
+      .manual-label {
+        width: 70px;
+        font-weight: 500;
+        color: #eee;
+      }
+
+      input[type="range"] {
+        flex: 1;
+        margin: 0 10px;
+      }
+
+      .manual-input {
+        width: 50px;
+        padding: 4px 6px;
+        background: #333;
+        border: 1px solid #555;
+        border-radius: 4px;
+        color: #eee;
+        text-align: center;
+      }
+    }
+  }
+}
+
+.sidebar.settings {
+  width: 220px;
+  .sidebar-content {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: 12px;
+
+    .calibrate-btn {
+      padding: 8px 0;
+      background: #333;
+      color: #fff;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      transition: background 0.2s;
+
+      &:hover {
+        background: #444;
+      }
+    }
+
+    .param-btn {
+      padding: 8px 0;
+      background: #444;
+      color: #fff;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      transition: background 0.2s;
+
+      &.active {
+        background: #3a8f3a; // green when active
+      }
+      &:not(.active) {
+        background: #8f3a3a; // red when inactive
+      }
+      &:hover {
+        background: #555;
+      }
     }
   }
 }
