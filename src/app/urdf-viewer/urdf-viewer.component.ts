@@ -267,6 +267,7 @@ export class UrdfViewerComponent implements OnInit {
     const rad = angleInDegrees
       ? THREE.MathUtils.degToRad(ctrl.angle)
       : ctrl.angle;
+    console.log("EP")
     ctrl.joint.setJointValue(rad);
   }
 
@@ -297,13 +298,7 @@ export class UrdfViewerComponent implements OnInit {
     const jointName: string = ctrl.name;
     const angle = ctrl.angle;
     if (!ctrl.real) {
-      console.warn(`Joint ${ctrl.name} is not a real motor, skipping setMotorAngle.`);
-      gsap.to(ctrl, {
-        angle: angle,
-        duration: 1,
-        ease: 'power2.inOut',
-        onUpdate: () => this.updateJoint(ctrl, true),
-      });
+      this.updateJoint(ctrl, true);
       return;
     }
     const payload: setMotorAngleModel = {
@@ -313,15 +308,7 @@ export class UrdfViewerComponent implements OnInit {
     this.positionService.setMotorAngle(payload).subscribe({
       next: () => {
         console.log(`Motor ${jointName} set to angle ${angle}`);
-        const ctrl = this.getRealJoint(jointName);
-        if (ctrl) {
-          gsap.to(ctrl, {
-            angle: angle,
-            duration: 1,
-            ease: 'power2.inOut',
-            onUpdate: () => this.updateJoint(ctrl, true),
-          });
-        }
+        this.updateJoint(ctrl, true);
       },
       error: (err) => {
         console.error(`Error setting motor ${jointName} angle:`, err);
@@ -385,9 +372,9 @@ export class UrdfViewerComponent implements OnInit {
               duration: 1,
               ease: 'power2.inOut',
               onUpdate: () => this.updateJoint(ctrl, true),
+              onComplete: () => this.getMotorAngle(ctrl)
             });
           }
-          this.getMotorAngle(ctrl)
         });
       },
       error: (err) => {
