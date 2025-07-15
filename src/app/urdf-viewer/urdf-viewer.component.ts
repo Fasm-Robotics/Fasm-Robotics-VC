@@ -254,8 +254,8 @@ export class UrdfViewerComponent implements OnInit {
     return this.joints.find(j => j.name === name);
   }
 
-  getPreviewJoint(name: string): JointControl | undefined {
-    return this.previewJoints.find(j => j.name === name);
+  getPreviewJoint(name: string): JointControl {
+    return <JointControl>this.previewJoints.find(j => j.name === name);
   }
 
   getLiveJoint(name: string): JointControl | undefined {
@@ -267,7 +267,6 @@ export class UrdfViewerComponent implements OnInit {
     const rad = angleInDegrees
       ? THREE.MathUtils.degToRad(ctrl.angle)
       : ctrl.angle;
-    console.log("EP")
     ctrl.joint.setJointValue(rad);
   }
 
@@ -297,6 +296,7 @@ export class UrdfViewerComponent implements OnInit {
   setMotorAngle(ctrl: JointControl): void {
     const jointName: string = ctrl.name;
     const angle = ctrl.angle;
+    const previewJoint = this.getPreviewJoint(jointName);
     if (!ctrl.real) {
       this.updateJoint(ctrl, true);
       return;
@@ -305,16 +305,9 @@ export class UrdfViewerComponent implements OnInit {
       motor: jointName,
       angle: angle
     }
-    this.positionService.setMotorAngle(payload).subscribe({
-      next: () => {
-        console.log(`Motor ${jointName} set to angle ${angle}`);
-        this.updateJoint(ctrl, true);
-      },
-      error: (err) => {
-        console.error(`Error setting motor ${jointName} angle:`, err);
-        alert(`Erreur de réglage du moteur ${jointName} : ${err.message || err}`);
-      },
-    });
+    this.updateJoint(ctrl, true);
+    previewJoint.angle = angle;
+    this.updateJoint(previewJoint, true)
   }
 
 
@@ -373,6 +366,17 @@ export class UrdfViewerComponent implements OnInit {
               ease: 'power2.inOut',
               onUpdate: () => this.updateJoint(ctrl, true),
               onComplete: () => this.getMotorAngle(ctrl)
+            });
+          }
+        });
+        this.previewJoints.forEach(ctrl => {
+          const jointName = ctrl.name;
+          if (jointName in response) {
+            gsap.to(ctrl, {
+              angle: response[jointName],
+              duration: 1,
+              ease: 'power2.inOut',
+              onUpdate: () => this.updateJoint(ctrl, true),
             });
           }
         });
