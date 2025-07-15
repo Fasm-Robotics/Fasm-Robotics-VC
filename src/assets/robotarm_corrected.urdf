@@ -84,7 +84,7 @@
     <origin xyz="0 0 0" rpy="0 0 0"/>  <!-- Adjusted for Y-axis -->
     <parent link="base_link"/>
     <child link="link_1"/>
-    <axis xyz="0 1 0"/>  <!-- Keep rotation axis along Y -->
+    <axis xyz="0 0 1"/>  <!-- Keep rotation axis along Y -->
     <limit
       lower="-3.15"
       upper="3.15"
@@ -132,7 +132,7 @@
   <joint
     name="SH2"
     type="revolute">
-    <origin xyz="0 1 0" rpy="0 0 0"/>
+    <origin xyz="0 0 1" rpy="0 0 0"/>
     <parent link="link_1"/>
     <child link="link_2"/>
     <axis xyz="1 0 0"/>  <!-- Might be wrong -->
