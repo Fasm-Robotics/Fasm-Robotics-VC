@@ -296,7 +296,6 @@ export class UrdfViewerComponent implements OnInit {
   setMotorAngle(ctrl: JointControl): void {
     const jointName: string = ctrl.name;
     const angle = ctrl.angle;
-    const previewJoint = this.getPreviewJoint(jointName);
     if (!ctrl.real) {
       this.updateJoint(ctrl, true);
       return;
@@ -305,9 +304,16 @@ export class UrdfViewerComponent implements OnInit {
       motor: jointName,
       angle: angle
     }
-    this.updateJoint(ctrl, true);
-    previewJoint.angle = angle;
-    this.updateJoint(previewJoint, true)
+    this.positionService.setMotorAngle(payload).subscribe({
+      next: () => {
+        console.log(`Motor ${jointName} set to angle ${angle}`);
+        this.updateJoint(ctrl, true);
+      },
+      error: (err) => {
+        console.error(`Error setting motor ${jointName} angle:`, err);
+        alert(`Erreur de réglage du moteur ${jointName} : ${err.message || err}`);
+      },
+    });
   }
 
 
