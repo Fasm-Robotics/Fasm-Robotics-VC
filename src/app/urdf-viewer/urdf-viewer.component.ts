@@ -1,4 +1,4 @@
-import {Component, ElementRef, NgZone, OnInit, ViewChild} from '@angular/core';
+import {Component, ElementRef, NgZone, OnInit, ViewChild, Input, Output, EventEmitter} from '@angular/core';
 import {FormsModule} from '@angular/forms';
 import {DecimalPipe, NgForOf, NgIf} from '@angular/common';
 
@@ -25,6 +25,7 @@ import {JointControl, MotorAngleResponse, SendTargetModel, Sequence, setMotorAng
 export class UrdfViewerComponent implements OnInit {
   // THREEJS VARIABLES
   @ViewChild('rendererContainer', {static: true}) rendererContainer!: ElementRef;
+  @Output() toggleCamera = new EventEmitter<void>();
   scene = new THREE.Scene();
   camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
   renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -575,6 +576,11 @@ export class UrdfViewerComponent implements OnInit {
       this.sidebars.angleInfo = true;
       this.sidebars.targetControls = true;
     }
+  }
+
+  // Toggle camera window visibility
+  onToggleCamera() {
+    this.toggleCamera.emit();
   }
 
   // Setting functions

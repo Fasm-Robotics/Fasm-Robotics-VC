@@ -1,5 +1,6 @@
 <div>
   <main>
-    <app-urdf-viewer></app-urdf-viewer>
+    <app-urdf-viewer (toggleCamera)="toggleCamera()"></app-urdf-viewer>
   </main>
+  <app-camera-window *ngIf="showCamera"></app-camera-window>
 </div>
