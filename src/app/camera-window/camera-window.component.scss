@@ -2,7 +2,7 @@
   position: fixed;
   bottom: 20px;
   right: 20px;
-  width: 320px;
+  width: 520px;
   background-color: rgba(20, 20, 20, 0.95);
   border: 1px solid #444;
   border-radius: 8px;
@@ -90,6 +90,65 @@
         }
       }
 
+      /* ✅ Canvas overlay pour le skeleton + points */
+      .overlay-canvas {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        display: block;
+        pointer-events: none;
+
+        /* IMPORTANT: même miroir que la vidéo */
+        transform: scaleX(-1);
+
+        &.hidden {
+          display: none;
+        }
+      }
+
+      /* ✅ HUD calibration / angles */
+      .tracking-hud {
+        position: absolute;
+        left: 10px;
+        top: 10px;
+        max-width: calc(100% - 20px);
+        background: rgba(0, 0, 0, 0.55);
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        color: #eee;
+        padding: 8px 10px;
+        border-radius: 10px;
+        backdrop-filter: blur(4px);
+
+        .hud-title {
+          font-weight: 700;
+          font-size: 0.85rem;
+          color: #ff6b6b; /* calibration = rouge */
+          letter-spacing: 0.2px;
+        }
+
+        .hud-subtitle {
+          margin-top: 4px;
+          font-size: 0.78rem;
+          color: #cfcfcf;
+        }
+
+        .hud-angles {
+          display: flex;
+          gap: 10px;
+          flex-wrap: wrap;
+          font-size: 0.82rem;
+          font-weight: 600;
+
+          span {
+            padding: 2px 6px;
+            border-radius: 6px;
+            background: rgba(255, 255, 255, 0.08);
+            border: 1px solid rgba(255, 255, 255, 0.10);
+          }
+        }
+      }
+
       .no-camera-placeholder {
         width: 100%;
         height: 100%;
@@ -156,6 +215,19 @@
           &:hover {
             background: #3a7a3a;
             border-color: #4a9a4a;
+          }
+        }
+
+        /* ✅ nouveau bouton recalibrer */
+        &.recalibrate-btn {
+          flex: 0 0 auto;
+          padding: 8px 12px;
+          background: #2b2b52;
+          border-color: #3d3d7a;
+
+          &:hover {
+            background: #3d3d7a;
+            border-color: #5656a8;
           }
         }
 

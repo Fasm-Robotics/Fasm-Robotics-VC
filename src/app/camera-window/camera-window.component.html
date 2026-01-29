@@ -30,6 +30,31 @@
         playsinline
       ></video>
 
+      <!-- ✅ CANVAS OVERLAY (pose drawing + debug) -->
+      <canvas
+        #overlayCanvas
+        class="overlay-canvas"
+        [class.hidden]="!cameraActive"
+      ></canvas>
+
+      <!-- ✅ HUD (calibration + angles) -->
+      <div class="tracking-hud" *ngIf="cameraActive">
+        <ng-container *ngIf="calibrating; else anglesTpl">
+          <div class="hud-title">
+            CALIBRATION: {{ remainingCalibration | number:'1.1-1' }}s
+          </div>
+          <div class="hud-subtitle">Gardez votre bras le long du corps</div>
+        </ng-container>
+
+        <ng-template #anglesTpl>
+          <div class="hud-angles">
+            <span>X: {{ angles.x | number:'1.0-1' }}°</span>
+            <span>Y: {{ angles.y | number:'1.0-1' }}°</span>
+            <span>Z: {{ angles.z | number:'1.0-1' }}°</span>
+          </div>
+        </ng-template>
+      </div>
+
       <div class="no-camera-placeholder" *ngIf="!cameraActive">
         <div class="placeholder-content">
           <p class="camera-icon">📷</p>
@@ -48,6 +73,17 @@
       >
         {{ cameraActive ? 'Stop' : 'Start' }}
       </button>
+
+      <!-- ✅ Recalibration button -->
+      <button
+        class="recalibrate-btn"
+        (click)="restartCalibration()"
+        *ngIf="cameraActive"
+        title="Recalibrate"
+      >
+        ⟲
+      </button>
+
       <button
         class="fullscreen-btn"
         (click)="toggleFullscreen()"

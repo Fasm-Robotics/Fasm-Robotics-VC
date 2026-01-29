@@ -1,6 +1,8 @@
 <div>
   <main>
-    <app-urdf-viewer (toggleCamera)="toggleCamera()"></app-urdf-viewer>
+    <app-urdf-viewer  [cameraShoulderAngles]="cameraShoulderAngles"
+                      [cameraElbowAngle]="cameraElbowAngle" (toggleCamera)="toggleCamera()"></app-urdf-viewer>
   </main>
-  <app-camera-window *ngIf="showCamera"></app-camera-window>
+  <app-camera-window   (armAngles)="onArmAngles($event)"
+                       (elbowAngle)="onElbowAngle($event)" *ngIf="showCamera"></app-camera-window>
 </div>

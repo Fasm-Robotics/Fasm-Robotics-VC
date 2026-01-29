@@ -1,4 +1,4 @@
-import {Component, ElementRef, NgZone, OnInit, ViewChild, Input, Output, EventEmitter} from '@angular/core';
+import { Component, ElementRef, NgZone, OnInit, ViewChild, Input, Output, EventEmitter, OnChanges, SimpleChanges } from '@angular/core';
 import {FormsModule} from '@angular/forms';
 import {DecimalPipe, NgForOf, NgIf} from '@angular/common';
 
@@ -22,7 +22,7 @@ import {JointControl, MotorAngleResponse, SendTargetModel, Sequence, setMotorAng
   styleUrl: './urdf-viewer.component.scss'
 })
 
-export class UrdfViewerComponent implements OnInit {
+export class UrdfViewerComponent implements OnInit, OnChanges {
   // THREEJS VARIABLES
   @ViewChild('rendererContainer', {static: true}) rendererContainer!: ElementRef;
   @Output() toggleCamera = new EventEmitter<void>();
@@ -84,6 +84,25 @@ export class UrdfViewerComponent implements OnInit {
     settings: true
   };
 
+  @Input() cameraShoulderAngles: { x: number; y: number; z: number } | null = null;
+  @Input() cameraElbowAngle: number | null = null;
+
+// limites + gain pour mapper camera -> joints
+  @Input() cameraGain = {
+    sh1: 1.0,
+    sh2: 1.0,
+    sh3: 1.0,
+    el1: 1.0
+  };
+
+// limites en degrés (à ajuster selon ton URDF/moteurs)
+  @Input() jointLimitsDeg = {
+    SH1: { min: -90, max: 90 },
+    SH2: { min: -90, max: 90 },
+    SH3: { min: -90, max: 90 },
+    EL1: { min: 0, max: 135 }
+  };
+
   constructor(private positionService: PositionService, private ngZone: NgZone) {
     this.targets.x = 0.5
     this.targets.y = 0.5
@@ -95,6 +114,20 @@ export class UrdfViewerComponent implements OnInit {
     this.animate();
     this.createTargetMarker();
   }
+
+  ngOnChanges(changes: SimpleChanges) {
+    // update shoulder joints
+    if (changes['cameraShoulderAngles'] && this.cameraShoulderAngles) {
+      this.applyCameraToShoulderJoints(this.cameraShoulderAngles);
+    }
+
+    // update elbow joint (optionnel)
+    if (changes['cameraElbowAngle'] && this.cameraElbowAngle !== null && this.cameraElbowAngle !== undefined) {
+      this.applyCameraToElbowJoint(this.cameraElbowAngle);
+    }
+  }
+
+
 
   // ---------------ALL THESE FUNCTIONS ARE FOR THE URDF VIEWER------------------------------------
 
@@ -627,6 +660,118 @@ export class UrdfViewerComponent implements OnInit {
   setMode(m: 'closedLoop'|'idle') {
     this.mode = m;
   }
+
+  private lastSendMs = 0;
+  private readonly SEND_INTERVAL_MS = 50; // 20Hz
+
+// ---- Helpers
+  private clamp(v: number, min: number, max: number) {
+    return Math.max(min, Math.min(max, v));
+  }
+
+// Pour éviter les micro updates du modèle
+  private applyStep(currentDeg: number, targetDeg: number, stepDeg = 0.5) {
+    return Math.abs(targetDeg - currentDeg) < stepDeg ? currentDeg : targetDeg;
+  }
+
+// ---- Mapping caméra -> URDF
+// cameraShoulder: {x,y,z} en DEGRES (ce que tu émets dans CameraWindow)
+// elbowFlexDeg: angle coude (0 = bras tendu, augmente quand il plie)
+  applyCameraAngles(cameraShoulder: {x:number;y:number;z:number}, elbowFlexDeg?: number) {
+    // ✅ Gains + inversions (à ajuster selon ton sens réel)
+    const gain = {
+      sh1: 1.0,
+      sh2: 1.0,
+      sh3: 1.0,
+      el1: 1.0
+    };
+
+    const invert = {
+      sh1: false,
+      sh2: false,
+      sh3: false,
+      el1: false
+    };
+
+    // ---- 1) Mapping brut (degrés)
+    let sh1 = cameraShoulder.z * gain.sh1; // axis Z
+    let sh2 = cameraShoulder.x * gain.sh2; // axis X
+    let sh3 = cameraShoulder.y * gain.sh3; // axis Z (après SH2 donc "différent" de SH1)
+    let el1 = (elbowFlexDeg ?? 0) * gain.el1; // axis Y (coude)
+
+    // ---- 2) Inversion si besoin
+    if (invert.sh1) sh1 *= -1;
+    if (invert.sh2) sh2 *= -1;
+    if (invert.sh3) sh3 *= -1;
+    if (invert.el1) el1 *= -1;
+
+    // ---- 3) Clamp (URDF: +/-180°)
+    sh1 = this.clamp(sh1, -180, 180);
+    sh2 = this.clamp(sh2, -180, 180);
+    sh3 = this.clamp(sh3, -180, 180);
+    el1 = this.clamp(el1, -180, 180);
+
+    // ---- 4) Appliquer sur preview (et live si tu veux)
+    const p1 = this.getPreviewJoint('SH1'); if (p1) { p1.angle = this.applyStep(p1.angle, sh1); this.updateJoint(p1, true); }
+    const p2 = this.getPreviewJoint('SH2'); if (p2) { p2.angle = this.applyStep(p2.angle, sh2); this.updateJoint(p2, true); }
+    const p3 = this.getPreviewJoint('SH3'); if (p3) { p3.angle = this.applyStep(p3.angle, sh3); this.updateJoint(p3, true); }
+    const p4 = this.getPreviewJoint('EL1'); if (p4) { p4.angle = this.applyStep(p4.angle, el1); this.updateJoint(p4, true); }
+
+    // Si tu veux aussi bouger le robot "live" (non transparent):
+    const l1 = this.getRealJoint('SH1'); if (l1) { l1.angle = sh1; this.updateJoint(l1, true); }
+    const l2 = this.getRealJoint('SH2'); if (l2) { l2.angle = sh2; this.updateJoint(l2, true); }
+    const l3 = this.getRealJoint('SH3'); if (l3) { l3.angle = sh3; this.updateJoint(l3, true); }
+    const l4 = this.getRealJoint('EL1'); if (l4) { l4.angle = el1; this.updateJoint(l4, true); }
+
+    // ⚠️ Si tu envoies aux moteurs réels via API => throttle (sinon spam)
+    // this.setMotorAngle(l1); ...
+  }
+
+  private applyAngleToJoint(name: string, angleDeg: number) {
+    // privilégie preview (visuel temps réel)
+    const ctrlLive = this.getPreviewJoint(name);
+    if (ctrlLive) {
+      ctrlLive.angle = angleDeg;
+      this.updateJoint(ctrlLive, true);
+
+      const now = performance.now();
+      if (now - this.lastSendMs > this.SEND_INTERVAL_MS) {
+        this.lastSendMs = now;
+        this.setMotorAngle(ctrlLive); // attention: va spam 4 moteurs => tu peux batcher
+      }
+    }
+
+    // ⚠️ Si tu veux envoyer au vrai robot, utilise setMotorAngle(ctrlLive)
+    // mais attention au spam API => throttle (voir plus bas)
+  }
+
+  private applyCameraToShoulderJoints(a: { x: number; y: number; z: number }) {
+    // Mapping simple (à ajuster selon ton sens d’axes URDF)
+    // Exemple:
+    //  - SH1 <- Z
+    //  - SH2 <- Y
+    //  - SH3 <- X
+    // Si c’est inversé, mets des "-" devant.
+    const sh1 = -a.z * this.cameraGain.sh1;
+    const sh2 = -a.y * this.cameraGain.sh2;
+    const sh3 = -a.x * this.cameraGain.sh3;
+
+    const sh1c = this.clamp(sh1, this.jointLimitsDeg.SH1.min, this.jointLimitsDeg.SH1.max);
+    const sh2c = this.clamp(sh2, this.jointLimitsDeg.SH2.min, this.jointLimitsDeg.SH2.max);
+    const sh3c = this.clamp(sh3, this.jointLimitsDeg.SH3.min, this.jointLimitsDeg.SH3.max);
+
+    this.applyAngleToJoint('SH1', sh1c);
+    this.applyAngleToJoint('SH2', sh2c);
+    this.applyAngleToJoint('SH3', sh3c);
+  }
+
+  private applyCameraToElbowJoint(elbowDeg: number) {
+    const el = elbowDeg * this.cameraGain.el1;
+    const elc = this.clamp(el, this.jointLimitsDeg.EL1.min, this.jointLimitsDeg.EL1.max);
+    this.applyAngleToJoint('EL1', elc);
+  }
+
+
 
   protected readonly THREE = THREE;
 }

@@ -16,6 +16,12 @@ import {NgIf} from '@angular/common';
 export class AppComponent {
   title = 'Fasm-Robotics-VC';
   showCamera = true;
+  cameraShoulderAngles = { x: 0, y: 0, z: 0 };
+  cameraElbowAngle = 0;
+
+  onArmAngles(a: {x:number;y:number;z:number}) { this.cameraShoulderAngles = a; }
+  onElbowAngle(e: number) { this.cameraElbowAngle = e; }
+
 
   toggleCamera() {
     this.showCamera = !this.showCamera;
