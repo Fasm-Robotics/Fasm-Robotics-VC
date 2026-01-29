@@ -371,7 +371,11 @@ export class UrdfViewerComponent implements OnInit {
               duration: 1,
               ease: 'power2.inOut',
               onUpdate: () => this.updateJoint(ctrl, true),
-              onComplete: () => this.getMotorAngle(ctrl)
+              onComplete: () => {
+                for (const joint of this.liveJoints) {
+                  this.getMotorAngle(joint);
+                }
+              }
             });
           }
         });
