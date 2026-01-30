@@ -24,6 +24,33 @@ class SmoothingFilter {
   }
 }
 
+class VelocityFilter {
+  private prev: number | null = null;
+  private readonly VELOCITY_THRESHOLD = 15; // degrés par frame
+  
+  update(v: number): number {
+    if (this.prev === null) {
+      this.prev = v;
+      return v;
+    }
+    
+    const delta = Math.abs(v - this.prev);
+    
+    // Si le changement est trop brusque (spike), ignorer
+    if (delta > this.VELOCITY_THRESHOLD) {
+      console.warn('📊 Velocity spike detected:', delta, '° -> Ignored');
+      return this.prev; // retourner la dernière bonne valeur
+    }
+    
+    this.prev = v;
+    return v;
+  }
+  
+  reset() {
+    this.prev = null;
+  }
+}
+
 type Vec3 = { x: number; y: number; z: number };
 
 @Component({
@@ -57,12 +84,23 @@ export class CameraWindowComponent implements OnInit, OnDestroy {
   private calibrationAngles: { x: number; y: number; z: number } | null = null;
 
   // ---- Smoothing
-  private filterX = new SmoothingFilter(0.75);
-  private filterY = new SmoothingFilter(0.75);
-  private filterZ = new SmoothingFilter(0.75);
+  private filterX = new SmoothingFilter(0.80);
+  private filterY = new SmoothingFilter(0.80);
+  private filterZ = new SmoothingFilter(0.80);
+  private filterElbow = new SmoothingFilter(0.80); // Nouveau filtre pour le coude
+
+  // ---- Velocity filters (pour éliminer les spikes)
+  private velocityFilterX = new VelocityFilter();
+  private velocityFilterY = new VelocityFilter();
+  private velocityFilterZ = new VelocityFilter();
+  private velocityFilterElbow = new VelocityFilter();
 
   // ---- Output angles (for HUD + your Three.js/URDF)
   angles = { x: 0, y: 0, z: 0 };
+  smoothedElbowAngle = 0;
+  
+  // ---- Deadzone pour le coude (quand bras le long du corps)
+  private readonly ELBOW_DEADZONE = 5; // degrés
 
   // ---- MediaPipe Pose indices (BlazePose 33) - RIGHT ARM ONLY
   private readonly RIGHT_SHOULDER = 12;
@@ -138,6 +176,11 @@ export class CameraWindowComponent implements OnInit, OnDestroy {
     this.filterX.reset();
     this.filterY.reset();
     this.filterZ.reset();
+    this.filterElbow.reset();
+    this.velocityFilterX.reset();
+    this.velocityFilterY.reset();
+    this.velocityFilterZ.reset();
+    this.velocityFilterElbow.reset();
   }
 
   toggleCamera() {
@@ -188,7 +231,9 @@ export class CameraWindowComponent implements OnInit, OnDestroy {
         delegate: 'GPU'
       },
       runningMode: 'VIDEO',
-      numPoses: 1
+      numPoses: 1,
+      minPoseDetectionConfidence: 0.7,    // Augmenté pour meilleure détection
+      minPosePresenceConfidence: 0.7      // Augmenté pour meilleur suivi
     });
   }
 
@@ -296,20 +341,47 @@ export class CameraWindowComponent implements OnInit, OnDestroy {
 
     const shoulder = lm[this.RIGHT_SHOULDER];
     const elbow = lm[this.RIGHT_ELBOW];
+    const wrist = lm[this.RIGHT_WRIST];
     const hip = lm[this.RIGHT_HIP];
 
-    if (!shoulder || !elbow || !hip) return;
+    if (!shoulder || !elbow || !hip || !wrist) return;
 
+    // ---- Vector: shoulder to elbow (biceps)
     const v2: Vec3 = {
       x: elbow.x - shoulder.x,
       y: elbow.y - shoulder.y,
       z: elbow.z - shoulder.z
     };
 
+    // ---- Vector: elbow to wrist (forearm)
+    const v3: Vec3 = {
+      x: wrist.x - elbow.x,
+      y: wrist.y - elbow.y,
+      z: wrist.z - elbow.z
+    };
+
     // Same math as your Python example
     const angleXraw = this.rad2deg(Math.atan2(v2.y, v2.z));
     const angleYraw = this.rad2deg(Math.atan2(v2.x, v2.z));
     const angleZraw = this.rad2deg(Math.atan2(v2.y, v2.x));
+
+    // ---- Angle du coude (angle entre biceps et avant-bras) - CORRIGÉ
+    // Utiliser la formule du produit scalaire: angle = arccos(dot(v1,v2) / (|v1|*|v2|))
+    const dotProduct = v2.x * v3.x + v2.y * v3.y + v2.z * v3.z;
+    const mag2 = Math.sqrt(v2.x * v2.x + v2.y * v2.y + v2.z * v2.z);
+    const mag3 = Math.sqrt(v3.x * v3.x + v3.y * v3.y + v3.z * v3.z);
+    
+    if (mag2 < 0.001 || mag3 < 0.001) return; // Avoid division by zero
+    
+    const cosBeta = dotProduct / (mag2 * mag3);
+    // Clamp pour éviter les erreurs numériques asin(-1.00001) ou asin(1.00001)
+    const cosBetaClamped = Math.max(-1, Math.min(1, cosBeta));
+    const angleBetweenVectors = this.rad2deg(Math.acos(cosBetaClamped));
+    
+    // L'angle du coude = 180° - angle entre les deux vecteurs
+    // Car quand l'angle entre les vecteurs = 0° (bras tendu, vecteurs alignés), le coude = 180°
+    // Quand l'angle entre vecteurs = 180° (bras plié, vecteurs opposés), le coude = 0°
+    const elbowFlexionRaw = 180 - angleBetweenVectors;
 
     // ---- Calibration phase (3s)
     if (this.calibrating) {
@@ -334,17 +406,36 @@ export class CameraWindowComponent implements OnInit, OnDestroy {
     let y = angleYraw - this.calibrationAngles.y;
     let z = angleZraw - this.calibrationAngles.z;
 
-    // ---- Smooth
+    // ---- Apply velocity filters (éliminer les spikes)
+    x = this.velocityFilterX.update(x);
+    y = this.velocityFilterY.update(y);
+    z = this.velocityFilterZ.update(z);
+
+    // ---- Smooth (lissage exponentiel)
     x = this.filterX.update(x);
     y = this.filterY.update(y);
     z = this.filterZ.update(z);
+
+    // ---- Appliquer la deadzone au coude
+    let elbowToEmit = elbowFlexionRaw;
+    if (Math.abs(elbowFlexionRaw) < this.ELBOW_DEADZONE) {
+      // Bras trop proche de la verticale, mettre angle du coude = 0
+      elbowToEmit = 0;
+      console.log('🪨 Elbow deadzone applied');
+    }
+
+    // ---- Appliquer le velocity filter au coude
+    elbowToEmit = this.velocityFilterElbow.update(elbowToEmit);
+
+    // Lisser aussi l'angle du coude
+    this.smoothedElbowAngle = this.filterElbow.update(elbowToEmit);
 
     this.angles = { x, y, z };
 
     // 👉 Hook for your robot arm:
     // this.armService.setShoulderAngles(this.angles);
     this.armAngles.emit(this.angles);
-
+    this.elbowAngle.emit(this.smoothedElbowAngle);
   }
 
   private rad2deg(r: number) {

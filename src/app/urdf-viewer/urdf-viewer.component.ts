@@ -760,14 +760,29 @@ export class UrdfViewerComponent implements OnInit, OnChanges {
     const sh2c = this.clamp(sh2, this.jointLimitsDeg.SH2.min, this.jointLimitsDeg.SH2.max);
     const sh3c = this.clamp(sh3, this.jointLimitsDeg.SH3.min, this.jointLimitsDeg.SH3.max);
 
+    console.log('📷 Camera shoulder angles:', a);
+    console.log('📐 Mapped to joints - SH1:', sh1c, 'SH2:', sh2c, 'SH3:', sh3c);
+
     this.applyAngleToJoint('SH1', sh1c);
     this.applyAngleToJoint('SH2', sh2c);
     this.applyAngleToJoint('SH3', sh3c);
   }
 
   private applyCameraToElbowJoint(elbowDeg: number) {
-    const el = elbowDeg * this.cameraGain.el1;
+    // Mapper l'angle du coude (0-180°) au range des moteurs
+    // MediaPipe: 0° = plié, 180° = tendu
+    // URDF EL1: 0° = tendu, 135° = plié
+    // Donc il faut inverser et mettre à l'échelle
+    
+    // Inverse: 180° - elbowDeg (0° -> 180°, 180° -> 0°)
+    const invertedElbow = 180 - elbowDeg;
+    
+    // Map de [0, 180] à [EL1.min, EL1.max] (ex: [0, 135])
+    const range = this.jointLimitsDeg.EL1.max - this.jointLimitsDeg.EL1.min;
+    const el = this.jointLimitsDeg.EL1.min + (invertedElbow / 180) * range;
+    
     const elc = this.clamp(el, this.jointLimitsDeg.EL1.min, this.jointLimitsDeg.EL1.max);
+    console.log('📷 Camera elbow angle:', elbowDeg, '-> Inverted:', invertedElbow, '-> Mapped:', elc);
     this.applyAngleToJoint('EL1', elc);
   }
 
