@@ -18,10 +18,15 @@ export class AppComponent {
   showCamera = true;
   cameraShoulderAngles = { x: 0, y: 0, z: 0 };
   cameraElbowAngle = 0;
+  cameraSH3Angle = 0;
 
-  onArmAngles(a: {x:number;y:number;z:number}) { this.cameraShoulderAngles = a; }
-  onElbowAngle(e: number) { this.cameraElbowAngle = e; }
+  onElbowAngle(e: number) { 
+    this.cameraElbowAngle = e;
+  }
 
+  onSH3Angle(s: number) {
+    this.cameraSH3Angle = s;
+  }
 
   toggleCamera() {
     this.showCamera = !this.showCamera;

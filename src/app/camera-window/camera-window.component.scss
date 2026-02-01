@@ -127,6 +127,11 @@
           letter-spacing: 0.2px;
         }
 
+        /* When calibration completes, show the title in green */
+        .hud-title.calibrated {
+          color: #2ecc71; /* green */
+        }
+
         .hud-subtitle {
           margin-top: 4px;
           font-size: 0.78rem;

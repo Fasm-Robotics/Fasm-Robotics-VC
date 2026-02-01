@@ -1,7 +1,5 @@
-import { Component, OnInit, OnDestroy, ViewChild, ElementRef } from '@angular/core';
-import { DecimalPipe, NgIf } from '@angular/common';
-import { Output, EventEmitter } from '@angular/core';
-
+import { Component, OnInit, OnDestroy, ViewChild, ElementRef, Output, EventEmitter } from '@angular/core';
+import { NgIf } from '@angular/common';
 
 import {
   FilesetResolver,
@@ -9,62 +7,33 @@ import {
   PoseLandmarkerResult
 } from '@mediapipe/tasks-vision';
 
+// Exponential smoothing filter
 class SmoothingFilter {
-  constructor(private smoothingFactor = 0.92) {}
   private prev: number | null = null;
-
-  update(v: number) {
+  constructor(private smoothingFactor = 0.85) {}
+  
+  update(v: number): number {
     if (this.prev === null) this.prev = v;
     else this.prev = this.smoothingFactor * this.prev + (1 - this.smoothingFactor) * v;
     return this.prev;
   }
-
-  reset() {
-    this.prev = null;
-  }
-}
-
-class VelocityFilter {
-  private prev: number | null = null;
-  private readonly VELOCITY_THRESHOLD = 15; // degrés par frame
-  
-  update(v: number): number {
-    if (this.prev === null) {
-      this.prev = v;
-      return v;
-    }
-    
-    const delta = Math.abs(v - this.prev);
-    
-    // Si le changement est trop brusque (spike), ignorer
-    if (delta > this.VELOCITY_THRESHOLD) {
-      console.warn('📊 Velocity spike detected:', delta, '° -> Ignored');
-      return this.prev; // retourner la dernière bonne valeur
-    }
-    
-    this.prev = v;
-    return v;
-  }
   
   reset() {
     this.prev = null;
   }
 }
-
-type Vec3 = { x: number; y: number; z: number };
 
 @Component({
   selector: 'app-camera-window',
-  imports: [NgIf, DecimalPipe],
+  imports: [NgIf],
   templateUrl: './camera-window.component.html',
   styleUrl: './camera-window.component.scss'
 })
 export class CameraWindowComponent implements OnInit, OnDestroy {
   @ViewChild('videoElement', { static: false }) videoElement!: ElementRef<HTMLVideoElement>;
   @ViewChild('overlayCanvas', { static: false }) overlayCanvas!: ElementRef<HTMLCanvasElement>;
-  @Output() armAngles = new EventEmitter<{ x: number; y: number; z: number }>();
-  @Output() elbowAngle = new EventEmitter<number>(); // optionnel si tu veux EL1
-
+  @Output() elbowAngle = new EventEmitter<number>();
+  @Output() sh3Angle = new EventEmitter<number>();
 
   cameraActive = false;
   cameraSupported = true;
@@ -72,44 +41,37 @@ export class CameraWindowComponent implements OnInit, OnDestroy {
   stream: MediaStream | null = null;
   isMinimized = false;
 
+  calibrationStatus = 'Initializing...';
+  calibrationTimeRemaining = 0;
+
   // ---- Pose tracking
   private poseLandmarker: PoseLandmarker | null = null;
   private rafId: number | null = null;
 
-  // ---- Calibration
-  calibrating = false;
-  private calibrationStartMs = 0;
-  readonly CALIBRATION_DURATION_MS = 3000;
-  remainingCalibration = 0;
-  private calibrationAngles: { x: number; y: number; z: number } | null = null;
-
-  // ---- Smoothing
-  private filterX = new SmoothingFilter(0.80);
-  private filterY = new SmoothingFilter(0.80);
-  private filterZ = new SmoothingFilter(0.80);
-  private filterElbow = new SmoothingFilter(0.80); // Nouveau filtre pour le coude
-
-  // ---- Velocity filters (pour éliminer les spikes)
-  private velocityFilterX = new VelocityFilter();
-  private velocityFilterY = new VelocityFilter();
-  private velocityFilterZ = new VelocityFilter();
-  private velocityFilterElbow = new VelocityFilter();
-
-  // ---- Output angles (for HUD + your Three.js/URDF)
-  angles = { x: 0, y: 0, z: 0 };
-  smoothedElbowAngle = 0;
-  
-  // ---- Deadzone pour le coude (quand bras le long du corps)
-  private readonly ELBOW_DEADZONE = 5; // degrés
-
-  // ---- MediaPipe Pose indices (BlazePose 33) - RIGHT ARM ONLY
+  // MediaPipe Pose indices (BlazePose 33)
   private readonly RIGHT_SHOULDER = 12;
   private readonly RIGHT_ELBOW = 14;
   private readonly RIGHT_WRIST = 16;
-  private readonly RIGHT_HIP = 24;
 
-  // ---- Visibility threshold (avoid spikes)
   private readonly VISIBILITY_THRESHOLD = 0.6;
+
+  private readonly ELBOW_MIN = 0;
+  private readonly ELBOW_MAX = 135;
+  private readonly ELBOW_MAX_DISTANCE = 0.4;
+  
+  private readonly SH3_MIN = -70;
+  private readonly SH3_MAX = 180;
+  
+  private readonly CALIBRATION_TIME_MS = 5000;
+  
+  private smoothingFilterElbow = new SmoothingFilter(0.85);
+  private smoothingFilterSH3 = new SmoothingFilter(0.85);
+  
+  private distanceCalibrationReference: number | null = null;
+  private sh3CalibrationReference: number | null = null;
+  private calibrationStartTime: number | null = null;
+  private isCalibrating = false;
+  public isCalibrationComplete = false;
 
   ngOnInit() {
     this.checkCameraSupport();
@@ -149,7 +111,9 @@ export class CameraWindowComponent implements OnInit, OnDestroy {
 
       await this.initPoseLandmarkerIfNeeded();
       this.resizeOverlayToVideo();
-      this.restartCalibration();
+      
+      this.startCalibration();
+      
       this.startTrackingLoop();
     } catch (error: any) {
       this.errorMessage = `Camera error: ${error?.message ?? error}`;
@@ -169,18 +133,6 @@ export class CameraWindowComponent implements OnInit, OnDestroy {
     }
 
     this.cameraActive = false;
-
-    // Reset tracking state (keep poseLandmarker cached for faster restart)
-    this.calibrating = false;
-    this.calibrationAngles = null;
-    this.filterX.reset();
-    this.filterY.reset();
-    this.filterZ.reset();
-    this.filterElbow.reset();
-    this.velocityFilterX.reset();
-    this.velocityFilterY.reset();
-    this.velocityFilterZ.reset();
-    this.velocityFilterElbow.reset();
   }
 
   toggleCamera() {
@@ -205,18 +157,17 @@ export class CameraWindowComponent implements OnInit, OnDestroy {
     }
   }
 
-  restartCalibration() {
-    this.calibrationAngles = null;
-    this.calibrating = true;
-    this.calibrationStartMs = performance.now();
-    this.remainingCalibration = this.CALIBRATION_DURATION_MS / 1000;
-
-    this.filterX.reset();
-    this.filterY.reset();
-    this.filterZ.reset();
+  private startCalibration() {
+    console.log('📐 CALIBRATION STARTED - Keep your arm along your body for 5 seconds');
+    this.isCalibrating = true;
+    this.isCalibrationComplete = false;
+    this.calibrationStartTime = performance.now();
+    this.distanceCalibrationReference = null;
+    this.sh3CalibrationReference = null;
+    this.smoothingFilterElbow.reset();
+    this.smoothingFilterSH3.reset();
   }
 
-  // -------- MediaPipe setup (PoseLandmarker)
   private async initPoseLandmarkerIfNeeded() {
     if (this.poseLandmarker) return;
 
@@ -232,8 +183,8 @@ export class CameraWindowComponent implements OnInit, OnDestroy {
       },
       runningMode: 'VIDEO',
       numPoses: 1,
-      minPoseDetectionConfidence: 0.7,    // Augmenté pour meilleure détection
-      minPosePresenceConfidence: 0.7      // Augmenté pour meilleur suivi
+      minPoseDetectionConfidence: 0.7,
+      minPosePresenceConfidence: 0.7
     });
   }
 
@@ -245,7 +196,6 @@ export class CameraWindowComponent implements OnInit, OnDestroy {
     canvas.height = video.videoHeight || 720;
   }
 
-  // -------- Tracking loop
   private startTrackingLoop() {
     const tick = () => {
       if (!this.cameraActive || !this.poseLandmarker) return;
@@ -264,9 +214,7 @@ export class CameraWindowComponent implements OnInit, OnDestroy {
       const nowMs = performance.now();
       const result = this.poseLandmarker.detectForVideo(video, nowMs);
 
-      // RIGHT ARM ONLY:
-      this.drawRightArmOnly(result);
-      this.computeRightShoulderAngles(result, nowMs);
+      this.drawRightArm(result);
 
       this.rafId = requestAnimationFrame(tick);
     };
@@ -274,8 +222,7 @@ export class CameraWindowComponent implements OnInit, OnDestroy {
     this.rafId = requestAnimationFrame(tick);
   }
 
-  // -------- Draw ONLY right arm (shoulder->elbow->wrist)
-  private drawRightArmOnly(result: PoseLandmarkerResult) {
+  private drawRightArm(result: PoseLandmarkerResult) {
     const ctx = this.overlayCanvas.nativeElement.getContext('2d');
     if (!ctx) return;
 
@@ -289,14 +236,12 @@ export class CameraWindowComponent implements OnInit, OnDestroy {
     const e = lm[this.RIGHT_ELBOW];
     const w = lm[this.RIGHT_WRIST];
 
-    // Require good visibility to avoid drawing random junk
     if (!this.isVisible(s) || !this.isVisible(e) || !this.isVisible(w)) return;
 
     const sx = s.x * canvas.width, sy = s.y * canvas.height;
     const ex = e.x * canvas.width, ey = e.y * canvas.height;
     const wx = w.x * canvas.width, wy = w.y * canvas.height;
 
-    // Lines
     ctx.strokeStyle = 'rgba(255,255,255,0.9)';
     ctx.lineWidth = 4;
     ctx.beginPath();
@@ -305,10 +250,84 @@ export class CameraWindowComponent implements OnInit, OnDestroy {
     ctx.lineTo(wx, wy);
     ctx.stroke();
 
-    // Points
-    this.drawDot(ctx, sx, sy, 6, 'rgba(255,0,0,0.9)');     // shoulder
-    this.drawDot(ctx, ex, ey, 6, 'rgba(0,255,0,0.9)');     // elbow
-    this.drawDot(ctx, wx, wy, 6, 'rgba(0,150,255,0.9)');   // wrist
+    this.drawDot(ctx, sx, sy, 6, 'rgba(255,0,0,0.9)');
+    this.drawDot(ctx, ex, ey, 6, 'rgba(0,255,0,0.9)');
+    this.drawDot(ctx, wx, wy, 6, 'rgba(0,150,255,0.9)');
+
+    const shoulderToElbow = Math.sqrt(
+      (e.x - s.x) ** 2 + (e.y - s.y) ** 2
+    );
+    
+    const elbowToWrist = Math.sqrt(
+      (w.x - e.x) ** 2 + (w.y - e.y) ** 2
+    );
+    
+    const shoulderToWrist = Math.sqrt(
+      (w.x - s.x) ** 2 + (w.y - s.y) ** 2
+    );
+    
+    if (shoulderToElbow === 0 || elbowToWrist === 0) {
+      return;
+    }
+    
+    const cosAngle = (
+      (shoulderToElbow ** 2) + (elbowToWrist ** 2) - (shoulderToWrist ** 2)
+    ) / (2 * shoulderToElbow * elbowToWrist);
+    
+    const cosAngleClamped = Math.max(-1, Math.min(1, cosAngle));
+    
+    const rawAngleDeg = Math.acos(cosAngleClamped) * (180 / Math.PI);
+    
+    const elbowAngleDeg = Math.max(0, Math.min(135, 180 - rawAngleDeg));
+
+    const elbowToWristX = w.x - e.x;
+    const elbowToWristY = w.y - e.y;
+    const elbowToWristZ = w.z - e.z;
+    
+    const elbowToWristXZ = Math.sqrt(elbowToWristX ** 2 + elbowToWristZ ** 2);
+    let sh3AngleRad = Math.atan2(elbowToWristX, elbowToWristXZ);
+    let sh3AngleDeg = sh3AngleRad * (180 / Math.PI);
+    
+    while (sh3AngleDeg > 180) sh3AngleDeg -= 360;
+    while (sh3AngleDeg < -180) sh3AngleDeg += 360;
+
+    if (this.isCalibrating && this.calibrationStartTime !== null) {
+      const elapsed = performance.now() - this.calibrationStartTime;
+      this.calibrationTimeRemaining = Math.max(0, Math.ceil((this.CALIBRATION_TIME_MS - elapsed) / 1000));
+      this.calibrationStatus = `📐 CALIBRATING... Keep arm along body (${this.calibrationTimeRemaining}s)`;
+      
+      if (this.sh3CalibrationReference === null) {
+        this.sh3CalibrationReference = sh3AngleDeg;
+      } else {
+        this.sh3CalibrationReference = 0.95 * this.sh3CalibrationReference + 0.05 * sh3AngleDeg;
+      }
+      
+      console.log('📐 Calibrating... EL1:', elbowAngleDeg.toFixed(1), '° SH3 Raw:', sh3AngleDeg.toFixed(1), '° (Ref: ' + this.sh3CalibrationReference?.toFixed(1) + '°)');
+      
+      if (elapsed >= this.CALIBRATION_TIME_MS) {
+        this.isCalibrating = false;
+        this.isCalibrationComplete = true;
+        this.calibrationStatus = '✅ CALIBRATION DONE - Ready to control!';
+        console.log('✅ CALIBRATION DONE - SH3 Reference:', this.sh3CalibrationReference?.toFixed(1), '°');
+      }
+      return;
+    }
+    
+    if (this.isCalibrationComplete && !this.isCalibrating) {
+      this.calibrationStatus = `🟢 CONTROL ACTIVE | EL1: ${elbowAngleDeg.toFixed(1)}° | SH3: ${sh3AngleDeg.toFixed(1)}°`;
+    }
+    
+    const sh3Normalized = Math.min(1, Math.max(-1, sh3AngleDeg / 90));
+    const sh3FinalAngle = sh3Normalized * 100;
+    const sh3AngleFinal = Math.max(this.SH3_MIN, Math.min(this.SH3_MAX, sh3FinalAngle));
+    
+    const smoothedElbowAngle = this.smoothingFilterElbow.update(elbowAngleDeg);
+    const smoothedSH3Angle = this.smoothingFilterSH3.update(sh3AngleFinal);
+
+    this.calibrationStatus = `🎮 EL1: ${smoothedElbowAngle.toFixed(1)}° | SH3: ${smoothedSH3Angle.toFixed(1)}°`;
+
+    this.elbowAngle.emit(-smoothedElbowAngle);
+    this.sh3Angle.emit(smoothedSH3Angle * 2 + 90);
   }
 
   private drawDot(ctx: CanvasRenderingContext2D, x: number, y: number, r: number, color: string) {
@@ -319,126 +338,6 @@ export class CameraWindowComponent implements OnInit, OnDestroy {
   }
 
   private isVisible(lm: any) {
-    // Some builds omit "visibility" — if missing, assume visible
     return (lm?.visibility ?? 1) >= this.VISIBILITY_THRESHOLD;
-  }
-
-  // -------- Compute shoulder angles (RIGHT ARM ONLY) + calibration + smoothing
-  private computeRightShoulderAngles(result: PoseLandmarkerResult, nowMs: number) {
-    // For stability: use worldLandmarks if available, but check visibility using 2D landmarks
-    const normLm = result.landmarks?.[0];
-    if (normLm) {
-      const s2d = normLm[this.RIGHT_SHOULDER];
-      const e2d = normLm[this.RIGHT_ELBOW];
-      const w2d = normLm[this.RIGHT_WRIST];
-      if (!this.isVisible(s2d) || !this.isVisible(e2d) || !this.isVisible(w2d)) return;
-    }
-
-    const world = result.worldLandmarks?.[0];
-    const norm = result.landmarks?.[0];
-    const lm = world ?? norm;
-    if (!lm) return;
-
-    const shoulder = lm[this.RIGHT_SHOULDER];
-    const elbow = lm[this.RIGHT_ELBOW];
-    const wrist = lm[this.RIGHT_WRIST];
-    const hip = lm[this.RIGHT_HIP];
-
-    if (!shoulder || !elbow || !hip || !wrist) return;
-
-    // ---- Vector: shoulder to elbow (biceps)
-    const v2: Vec3 = {
-      x: elbow.x - shoulder.x,
-      y: elbow.y - shoulder.y,
-      z: elbow.z - shoulder.z
-    };
-
-    // ---- Vector: elbow to wrist (forearm)
-    const v3: Vec3 = {
-      x: wrist.x - elbow.x,
-      y: wrist.y - elbow.y,
-      z: wrist.z - elbow.z
-    };
-
-    // Same math as your Python example
-    const angleXraw = this.rad2deg(Math.atan2(v2.y, v2.z));
-    const angleYraw = this.rad2deg(Math.atan2(v2.x, v2.z));
-    const angleZraw = this.rad2deg(Math.atan2(v2.y, v2.x));
-
-    // ---- Angle du coude (angle entre biceps et avant-bras) - CORRIGÉ
-    // Utiliser la formule du produit scalaire: angle = arccos(dot(v1,v2) / (|v1|*|v2|))
-    const dotProduct = v2.x * v3.x + v2.y * v3.y + v2.z * v3.z;
-    const mag2 = Math.sqrt(v2.x * v2.x + v2.y * v2.y + v2.z * v2.z);
-    const mag3 = Math.sqrt(v3.x * v3.x + v3.y * v3.y + v3.z * v3.z);
-    
-    if (mag2 < 0.001 || mag3 < 0.001) return; // Avoid division by zero
-    
-    const cosBeta = dotProduct / (mag2 * mag3);
-    // Clamp pour éviter les erreurs numériques asin(-1.00001) ou asin(1.00001)
-    const cosBetaClamped = Math.max(-1, Math.min(1, cosBeta));
-    const angleBetweenVectors = this.rad2deg(Math.acos(cosBetaClamped));
-    
-    // L'angle du coude = 180° - angle entre les deux vecteurs
-    // Car quand l'angle entre les vecteurs = 0° (bras tendu, vecteurs alignés), le coude = 180°
-    // Quand l'angle entre vecteurs = 180° (bras plié, vecteurs opposés), le coude = 0°
-    const elbowFlexionRaw = 180 - angleBetweenVectors;
-
-    // ---- Calibration phase (3s)
-    if (this.calibrating) {
-      const elapsed = nowMs - this.calibrationStartMs;
-      this.remainingCalibration = Math.max(0, (this.CALIBRATION_DURATION_MS - elapsed) / 1000);
-
-      // take first reference sample (simple) — can be replaced by averaging if needed
-      if (!this.calibrationAngles) {
-        this.calibrationAngles = { x: angleXraw, y: angleYraw, z: angleZraw };
-      }
-
-      if (elapsed >= this.CALIBRATION_DURATION_MS) {
-        this.calibrating = false;
-      }
-      return;
-    }
-
-    if (!this.calibrationAngles) return;
-
-    // ---- Apply calibration offsets
-    let x = angleXraw - this.calibrationAngles.x;
-    let y = angleYraw - this.calibrationAngles.y;
-    let z = angleZraw - this.calibrationAngles.z;
-
-    // ---- Apply velocity filters (éliminer les spikes)
-    x = this.velocityFilterX.update(x);
-    y = this.velocityFilterY.update(y);
-    z = this.velocityFilterZ.update(z);
-
-    // ---- Smooth (lissage exponentiel)
-    x = this.filterX.update(x);
-    y = this.filterY.update(y);
-    z = this.filterZ.update(z);
-
-    // ---- Appliquer la deadzone au coude
-    let elbowToEmit = elbowFlexionRaw;
-    if (Math.abs(elbowFlexionRaw) < this.ELBOW_DEADZONE) {
-      // Bras trop proche de la verticale, mettre angle du coude = 0
-      elbowToEmit = 0;
-      console.log('🪨 Elbow deadzone applied');
-    }
-
-    // ---- Appliquer le velocity filter au coude
-    elbowToEmit = this.velocityFilterElbow.update(elbowToEmit);
-
-    // Lisser aussi l'angle du coude
-    this.smoothedElbowAngle = this.filterElbow.update(elbowToEmit);
-
-    this.angles = { x, y, z };
-
-    // 👉 Hook for your robot arm:
-    // this.armService.setShoulderAngles(this.angles);
-    this.armAngles.emit(this.angles);
-    this.elbowAngle.emit(this.smoothedElbowAngle);
-  }
-
-  private rad2deg(r: number) {
-    return r * 180 / Math.PI;
   }
 }
