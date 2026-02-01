@@ -18,10 +18,15 @@ export class AppComponent {
   showCamera = true;
   cameraShoulderAngles = { x: 0, y: 0, z: 0 };
   cameraElbowAngle = 0;
+  cameraSH2Angle = 0;
   cameraSH3Angle = 0;
 
   onElbowAngle(e: number) { 
     this.cameraElbowAngle = e;
+  }
+
+  onSH2Angle(s: number) {
+    this.cameraSH2Angle = s;
   }
 
   onSH3Angle(s: number) {

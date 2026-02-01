@@ -86,6 +86,7 @@ export class UrdfViewerComponent implements OnInit, OnChanges {
 
   @Input() cameraShoulderAngles: { x: number; y: number; z: number } | null = null;
   @Input() cameraElbowAngle: number | null = null;
+  @Input() cameraSH2Angle: number | null = null;
   @Input() cameraSH3Angle: number | null = null;
 
 // limites + gain pour mapper camera -> joints
@@ -98,7 +99,7 @@ export class UrdfViewerComponent implements OnInit, OnChanges {
 
   @Input() jointLimitsDeg = {
     SH1: { min: -90, max: 90 },
-    SH2: { min: -90, max: 90 },
+    SH2: { min: -90, max: 180 },
     SH3: { min: -70, max: 180 },
     EL1: { min: 0, max: 135 }
   };
@@ -116,17 +117,18 @@ export class UrdfViewerComponent implements OnInit, OnChanges {
   }
 
   ngOnChanges(changes: SimpleChanges) {
-    // update shoulder joints
     if (changes['cameraShoulderAngles'] && this.cameraShoulderAngles) {
       this.applyCameraToShoulderJoints(this.cameraShoulderAngles);
     }
 
-    // update elbow joint
     if (changes['cameraElbowAngle'] && this.cameraElbowAngle !== null && this.cameraElbowAngle !== undefined) {
       this.applyCameraToElbowJoint(this.cameraElbowAngle);
     }
 
-    // update SH3 joint (rotation du bras)
+    if (changes['cameraSH2Angle'] && this.cameraSH2Angle !== null && this.cameraSH2Angle !== undefined) {
+      this.applyCameraToSH2Joint(this.cameraSH2Angle);
+    }
+
     if (changes['cameraSH3Angle'] && this.cameraSH3Angle !== null && this.cameraSH3Angle !== undefined) {
       this.applyCameraToSH3Joint(this.cameraSH3Angle);
     }
@@ -764,6 +766,13 @@ export class UrdfViewerComponent implements OnInit, OnChanges {
     
     console.log('🤖 URDF Elbow raw:', elbowDeg.toFixed(1), '° | Clamped EL1:', elc.toFixed(1), '°');
     this.applyAngleToJoint('EL1', elc);
+  }
+
+  private applyCameraToSH2Joint(sh2Deg: number) {
+    const sh2c = this.clamp(sh2Deg, -90, 180);
+    
+    console.log('🤖 URDF SH2 raw:', sh2Deg.toFixed(1), '° | Clamped SH2:', sh2c.toFixed(1), '°');
+    this.applyAngleToJoint('SH2', sh2c);
   }
 
   private applyCameraToSH3Joint(sh3Deg: number) {

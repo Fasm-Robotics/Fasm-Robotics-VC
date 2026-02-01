@@ -33,6 +33,7 @@ export class CameraWindowComponent implements OnInit, OnDestroy {
   @ViewChild('videoElement', { static: false }) videoElement!: ElementRef<HTMLVideoElement>;
   @ViewChild('overlayCanvas', { static: false }) overlayCanvas!: ElementRef<HTMLCanvasElement>;
   @Output() elbowAngle = new EventEmitter<number>();
+  @Output() sh2Angle = new EventEmitter<number>();
   @Output() sh3Angle = new EventEmitter<number>();
 
   cameraActive = false;
@@ -59,12 +60,16 @@ export class CameraWindowComponent implements OnInit, OnDestroy {
   private readonly ELBOW_MAX = 135;
   private readonly ELBOW_MAX_DISTANCE = 0.4;
   
+  private readonly SH2_MIN = -90;
+  private readonly SH2_MAX = 180;
+  
   private readonly SH3_MIN = -70;
   private readonly SH3_MAX = 180;
   
   private readonly CALIBRATION_TIME_MS = 5000;
   
   private smoothingFilterElbow = new SmoothingFilter(0.85);
+  private smoothingFilterSH2 = new SmoothingFilter(0.85);
   private smoothingFilterSH3 = new SmoothingFilter(0.85);
   
   private distanceCalibrationReference: number | null = null;
@@ -165,6 +170,7 @@ export class CameraWindowComponent implements OnInit, OnDestroy {
     this.distanceCalibrationReference = null;
     this.sh3CalibrationReference = null;
     this.smoothingFilterElbow.reset();
+    this.smoothingFilterSH2.reset();
     this.smoothingFilterSH3.reset();
   }
 
@@ -291,6 +297,18 @@ export class CameraWindowComponent implements OnInit, OnDestroy {
     while (sh3AngleDeg > 180) sh3AngleDeg -= 360;
     while (sh3AngleDeg < -180) sh3AngleDeg += 360;
 
+    // SH2 (Shoulder elevation): use ONLY shoulder->elbow vector, not wrist
+    // This way bending elbow doesn't affect shoulder height
+    const shoulderToElbowY = e.y - s.y;
+    const shoulderToElbowZ = e.z - s.z;
+    
+    const shoulderToElbowYZ = Math.sqrt(shoulderToElbowY ** 2 + shoulderToElbowZ ** 2);
+    let sh2AngleRad = Math.atan2(-shoulderToElbowY, shoulderToElbowYZ);
+    let sh2AngleDeg = sh2AngleRad * (180 / Math.PI);
+    
+    sh2AngleDeg = sh2AngleDeg * 2 + 90;
+    if (sh2AngleDeg > 180) sh2AngleDeg = 180;
+
     if (this.isCalibrating && this.calibrationStartTime !== null) {
       const elapsed = performance.now() - this.calibrationStartTime;
       this.calibrationTimeRemaining = Math.max(0, Math.ceil((this.CALIBRATION_TIME_MS - elapsed) / 1000));
@@ -314,19 +332,23 @@ export class CameraWindowComponent implements OnInit, OnDestroy {
     }
     
     if (this.isCalibrationComplete && !this.isCalibrating) {
-      this.calibrationStatus = `🟢 CONTROL ACTIVE | EL1: ${elbowAngleDeg.toFixed(1)}° | SH3: ${sh3AngleDeg.toFixed(1)}°`;
+      this.calibrationStatus = `🟢 CONTROL ACTIVE | EL1: ${elbowAngleDeg.toFixed(1)}° | SH2: ${sh2AngleDeg.toFixed(1)}° | SH3: ${sh3AngleDeg.toFixed(1)}°`;
     }
+    
+    const sh2AngleFinal = Math.max(this.SH2_MIN, Math.min(this.SH2_MAX, sh2AngleDeg));
     
     const sh3Normalized = Math.min(1, Math.max(-1, sh3AngleDeg / 90));
     const sh3FinalAngle = sh3Normalized * 100;
     const sh3AngleFinal = Math.max(this.SH3_MIN, Math.min(this.SH3_MAX, sh3FinalAngle));
     
     const smoothedElbowAngle = this.smoothingFilterElbow.update(elbowAngleDeg);
+    const smoothedSH2Angle = this.smoothingFilterSH2.update(sh2AngleFinal);
     const smoothedSH3Angle = this.smoothingFilterSH3.update(sh3AngleFinal);
 
-    this.calibrationStatus = `🎮 EL1: ${smoothedElbowAngle.toFixed(1)}° | SH3: ${smoothedSH3Angle.toFixed(1)}°`;
+    this.calibrationStatus = `🎮 EL1: ${smoothedElbowAngle.toFixed(1)}° | SH2: ${smoothedSH2Angle.toFixed(1)}° | SH3: ${smoothedSH3Angle.toFixed(1)}°`;
 
     this.elbowAngle.emit(-smoothedElbowAngle);
+    this.sh2Angle.emit(smoothedSH2Angle);
     this.sh3Angle.emit(smoothedSH3Angle * 2 + 90);
   }
 

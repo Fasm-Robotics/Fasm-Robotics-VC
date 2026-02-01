@@ -2,10 +2,12 @@
   <main>
     <app-urdf-viewer  [cameraShoulderAngles]="cameraShoulderAngles"
                       [cameraElbowAngle]="cameraElbowAngle"
+                      [cameraSH2Angle]="cameraSH2Angle"
                       [cameraSH3Angle]="cameraSH3Angle"
                       (toggleCamera)="toggleCamera()"></app-urdf-viewer>
   </main>
-  <app-camera-window   (elbowAngle)="onElbowAngle($event)" 
+  <app-camera-window   (elbowAngle)="onElbowAngle($event)"
+                       (sh2Angle)="onSH2Angle($event)"
                        (sh3Angle)="onSH3Angle($event)"
                        *ngIf="showCamera"></app-camera-window>
 </div>
