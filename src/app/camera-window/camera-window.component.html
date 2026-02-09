@@ -1,0 +1,78 @@
+<div class="camera-window" [class.minimized]="isMinimized">
+  <div class="camera-header">
+    <span>Camera</span>
+    <div class="camera-controls">
+      <button
+        class="minimize-btn"
+        (click)="toggleMinimize()"
+        title="Minimize"
+      >
+        {{ isMinimized ? '▢' : '−' }}
+      </button>
+      <button
+        class="close-btn"
+        (click)="stopCamera()"
+        title="Close"
+      >
+        ✕
+      </button>
+    </div>
+  </div>
+
+  <div class="camera-content" *ngIf="!isMinimized">
+    <div class="camera-container">
+      <video
+        #videoElement
+        class="video-feed"
+        [class.hidden]="!cameraActive"
+        muted
+        autoplay
+        playsinline
+      ></video>
+
+      <!-- ✅ CANVAS OVERLAY (pose drawing + debug) -->
+      <canvas
+        #overlayCanvas
+        class="overlay-canvas"
+        [class.hidden]="!cameraActive"
+      ></canvas>
+
+      <!-- ✅ HUD (juste pour debug) -->
+      <div class="tracking-hud" *ngIf="cameraActive">
+        <!-- Add conditional class 'calibrated' when calibration is complete -->
+        <div class="hud-title" [class.calibrated]="isCalibrationComplete">{{ calibrationStatus }}</div>
+      </div>
+
+      <div class="no-camera-placeholder" *ngIf="!cameraActive">
+        <div class="placeholder-content">
+          <p class="camera-icon">📷</p>
+          <p *ngIf="cameraSupported && !errorMessage">Click "Start" to enable camera</p>
+          <p *ngIf="!cameraSupported" class="error">{{ errorMessage }}</p>
+          <p *ngIf="errorMessage && cameraSupported" class="error">{{ errorMessage }}</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="camera-actions">
+      <button
+        class="start-btn"
+        (click)="toggleCamera()"
+        *ngIf="cameraSupported"
+      >
+        {{ cameraActive ? 'Stop' : 'Start' }}
+      </button>
+
+      <!-- ✅ Recalibration button -->
+      <!-- REMOVED: calibration not needed anymore -->
+
+      <button
+        class="fullscreen-btn"
+        (click)="toggleFullscreen()"
+        *ngIf="cameraActive"
+        title="Fullscreen"
+      >
+        ⛶
+      </button>
+    </div>
+  </div>
+</div>

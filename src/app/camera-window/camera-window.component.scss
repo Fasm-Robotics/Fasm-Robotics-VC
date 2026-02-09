@@ -1,0 +1,277 @@
+.camera-window {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  width: 520px;
+  background-color: rgba(20, 20, 20, 0.95);
+  border: 1px solid #444;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.6);
+  display: flex;
+  flex-direction: column;
+  z-index: 150;
+  min-height: 240px;
+  overflow: hidden;
+  transition: all 0.3s ease;
+
+  .camera-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px;
+    background-color: #222;
+    border-bottom: 1px solid #444;
+    border-radius: 8px 8px 0 0;
+    color: #eee;
+    font-weight: 500;
+    cursor: grab;
+    user-select: none;
+
+    &:active {
+      cursor: grabbing;
+    }
+
+    .camera-controls {
+      display: flex;
+      gap: 8px;
+
+      button {
+        background: transparent;
+        border: none;
+        color: #aaa;
+        font-size: 1.1em;
+        cursor: pointer;
+        padding: 4px 8px;
+        transition: color 0.2s;
+
+        &:hover {
+          color: #fff;
+        }
+
+        &.minimize-btn {
+          &:hover {
+            color: #4a9eff;
+          }
+        }
+
+        &.close-btn {
+          &:hover {
+            color: #ff6b6b;
+          }
+        }
+      }
+    }
+  }
+
+  .camera-content {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    padding: 0;
+
+    .camera-container {
+      position: relative;
+      width: 100%;
+      flex: 1;
+      background-color: #000;
+      border-radius: 0;
+      overflow: hidden;
+      aspect-ratio: 4 / 3;
+
+      .video-feed {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        display: block;
+        transform: scaleX(-1);
+
+        &.hidden {
+          display: none;
+        }
+      }
+
+      /* ✅ Canvas overlay pour le skeleton + points */
+      .overlay-canvas {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        display: block;
+        pointer-events: none;
+
+        /* IMPORTANT: même miroir que la vidéo */
+        transform: scaleX(-1);
+
+        &.hidden {
+          display: none;
+        }
+      }
+
+      /* ✅ HUD calibration / angles */
+      .tracking-hud {
+        position: absolute;
+        left: 10px;
+        top: 10px;
+        max-width: calc(100% - 20px);
+        background: rgba(0, 0, 0, 0.55);
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        color: #eee;
+        padding: 8px 10px;
+        border-radius: 10px;
+        backdrop-filter: blur(4px);
+
+        .hud-title {
+          font-weight: 700;
+          font-size: 0.85rem;
+          color: #ff6b6b; /* calibration = rouge */
+          letter-spacing: 0.2px;
+        }
+
+        /* When calibration completes, show the title in green */
+        .hud-title.calibrated {
+          color: #2ecc71; /* green */
+        }
+
+        .hud-subtitle {
+          margin-top: 4px;
+          font-size: 0.78rem;
+          color: #cfcfcf;
+        }
+
+        .hud-angles {
+          display: flex;
+          gap: 10px;
+          flex-wrap: wrap;
+          font-size: 0.82rem;
+          font-weight: 600;
+
+          span {
+            padding: 2px 6px;
+            border-radius: 6px;
+            background: rgba(255, 255, 255, 0.08);
+            border: 1px solid rgba(255, 255, 255, 0.10);
+          }
+        }
+      }
+
+      .no-camera-placeholder {
+        width: 100%;
+        height: 100%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: linear-gradient(135deg, #1a1a1a 0%, #2a2a2a 100%);
+
+        .placeholder-content {
+          text-align: center;
+          color: #888;
+
+          .camera-icon {
+            font-size: 3rem;
+            margin: 0;
+          }
+
+          p {
+            margin: 8px 0 0 0;
+            font-size: 0.9rem;
+            padding: 0 12px;
+
+            &.error {
+              color: #ff6b6b;
+              font-size: 0.85rem;
+            }
+          }
+        }
+      }
+    }
+
+    .camera-actions {
+      display: flex;
+      gap: 8px;
+      padding: 12px;
+      background-color: #1a1a1a;
+      border-top: 1px solid #333;
+
+      button {
+        flex: 1;
+        padding: 8px 12px;
+        background: #333;
+        color: #fff;
+        border: 1px solid #555;
+        border-radius: 4px;
+        font-size: 0.9rem;
+        font-weight: 500;
+        cursor: pointer;
+        transition: all 0.2s;
+
+        &:hover {
+          background: #444;
+          border-color: #666;
+        }
+
+        &:active {
+          background: #555;
+        }
+
+        &.start-btn {
+          background: #2d5a2d;
+          border-color: #3a7a3a;
+
+          &:hover {
+            background: #3a7a3a;
+            border-color: #4a9a4a;
+          }
+        }
+
+        /* ✅ nouveau bouton recalibrer */
+        &.recalibrate-btn {
+          flex: 0 0 auto;
+          padding: 8px 12px;
+          background: #2b2b52;
+          border-color: #3d3d7a;
+
+          &:hover {
+            background: #3d3d7a;
+            border-color: #5656a8;
+          }
+        }
+
+        &.fullscreen-btn {
+          flex: 0 0 auto;
+          padding: 8px 12px;
+          background: #3a3a3a;
+
+          &:hover {
+            background: #4a4a4a;
+          }
+        }
+      }
+    }
+  }
+
+  // Minimized state
+  &.minimized {
+    min-height: auto;
+
+    .camera-content {
+      display: none;
+    }
+
+    .camera-header {
+      border-radius: 8px;
+    }
+  }
+}
+
+// Responsive adjustments for smaller screens
+@media (max-width: 768px) {
+  .camera-window {
+    width: 280px;
+    bottom: 15px;
+    right: 15px;
+
+    .camera-content .camera-container {
+      aspect-ratio: 3 / 2;
+    }
+  }
+}
